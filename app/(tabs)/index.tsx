@@ -1,0 +1,416 @@
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, Dimensions } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { useSoundDetection } from '@/contexts/SoundDetectionContext';
+import { useNotifications } from '@/contexts/NotificationContext';
+import { useMLModel } from '@/contexts/MLModelContext';
+import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { AudioVisualizer } from '@/components/ui/AudioVisualizer';
+import { Activity, Mic, Bell, TrendingUp, Volume2, Shield, Brain, Zap, Database } from 'lucide-react-native';
+import Animated, { FadeInDown, FadeInRight } from 'react-native-reanimated';
+
+const { width } = Dimensions.get('window');
+
+export default function HomeScreen() {
+  const { colors } = useTheme();
+  const { t } = useLanguage();
+  const router = useRouter();
+  const { detections, isRecording } = useSoundDetection();
+  const { addNotification } = useNotifications();
+  const { modelPerformance, isModelLoaded } = useMLModel();
+  const [stats, setStats] = useState({
+    todayDetections: 0,
+    mostCommon: 'None',
+    accuracy: 0,
+  });
+
+  useEffect(() => {
+    calculateStats();
+  }, [detections]);
+
+  const calculateStats = () => {
+    const today = new Date().toDateString();
+    const todayDetections = detections.filter(d => d.timestamp.toDateString() === today).length;
+    
+    const soundCounts: { [key: string]: number } = {};
+    detections.forEach(d => {
+      soundCounts[d.soundType] = (soundCounts[d.soundType] || 0) + 1;
+    });
+    
+    const mostCommon = Object.keys(soundCounts).length > 0 
+      ? Object.keys(soundCounts).reduce((a, b) => soundCounts[a] > soundCounts[b] ? a : b)
+      : 'None';
+    
+    const avgAccuracy = detections.length > 0
+      ? detections.reduce((sum, d) => sum + d.confidence, 0) / detections.length
+      : 0;
+
+    setStats({
+      todayDetections,
+      mostCommon,
+      accuracy: Math.round(avgAccuracy * 100),
+    });
+  };
+
+  const quickStartRecording = () => {
+    addNotification({
+      title: 'Recording Started',
+      message: 'Sound detection is now active',
+      type: 'info',
+    });
+  };
+
+  const recentDetections = detections.slice(0, 3);
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Header */}
+        <Animated.View entering={FadeInDown.delay(100)} style={styles.header}>
+          <Text style={[styles.title, { color: colors.text }]}>{t('appName')}</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+            {t('homeSubtitle')}
+          </Text>
+        </Animated.View>
+
+        {/* Status Card */}
+        <Animated.View entering={FadeInDown.delay(200)}>
+          <Card style={[styles.statusCard, { backgroundColor: isRecording ? colors.success : colors.card }]}>
+            <View style={styles.statusContent}>
+              <Activity size={24} color={isRecording ? colors.background : colors.primary} />
+              <Text style={[styles.statusText, { 
+                color: isRecording ? colors.background : colors.text 
+              }]}>
+                {isRecording ? t('activelyMonitoring') : t('monitoringPaused')}
+              </Text>
+            </View>
+            
+            {/* Audio Visualizer */}
+            <View style={styles.visualizerContainer}>
+              <AudioVisualizer isActive={isRecording} type="waveform" height={40} />
+            </View>
+          </Card>
+        </Animated.View>
+
+        {/* Stats Row */}
+        <Animated.View entering={FadeInRight.delay(300)} style={styles.statsRow}>
+          <Card style={styles.statCard}>
+            <TrendingUp size={20} color={colors.primary} />
+            <Text style={[styles.statNumber, { color: colors.text }]}>{stats.todayDetections}</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{t('today')}</Text>
+          </Card>
+          
+          <Card style={styles.statCard}>
+            <Volume2 size={20} color={colors.secondary} />
+            <Text style={[styles.statNumber, { color: colors.text }]}>{stats.accuracy}%</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{t('accuracy')}</Text>
+          </Card>
+          
+          <Card style={styles.statCard}>
+            <Shield size={20} color={colors.accent} />
+            <Text style={[styles.statNumber, { color: colors.text }]}>{detections.length}</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{t('total')}</Text>
+          </Card>
+        </Animated.View>
+
+        {/* ML Model Status */}
+        <Animated.View entering={FadeInDown.delay(350)}>
+          <Card style={styles.modelStatusCard}>
+            <View style={styles.modelHeader}>
+              <Brain size={24} color={colors.primary} />
+              <Text style={[styles.modelTitle, { color: colors.text }]}>AI Model Status</Text>
+              <View style={[
+                styles.modelStatusBadge, 
+                { backgroundColor: isModelLoaded ? colors.success : colors.warning }
+              ]}>
+                <Text style={[styles.modelStatusText, { color: colors.background }]}>
+                  {isModelLoaded ? 'Ready' : 'Loading'}
+                </Text>
+              </View>
+            </View>
+            
+            <View style={styles.modelMetrics}>
+              <View style={styles.metricItem}>
+                <Zap size={16} color={colors.accent} />
+                <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>Inference</Text>
+                <Text style={[styles.metricValue, { color: colors.text }]}>
+                  {modelPerformance.inferenceTime}ms
+                </Text>
+              </View>
+              <View style={styles.metricItem}>
+                <Database size={16} color={colors.secondary} />
+                <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>Precision</Text>
+                <Text style={[styles.metricValue, { color: colors.text }]}>
+                  {Math.round(modelPerformance.precision * 100)}%
+                </Text>
+              </View>
+              <View style={styles.metricItem}>
+                <Activity size={16} color={colors.primary} />
+                <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>F1 Score</Text>
+                <Text style={[styles.metricValue, { color: colors.text }]}>
+                  {Math.round(modelPerformance.f1Score * 100)}%
+                </Text>
+              </View>
+            </View>
+          </Card>
+        </Animated.View>
+
+        {/* Quick Actions */}
+        <Animated.View entering={FadeInDown.delay(400)}>
+          <Card style={styles.actionsCard}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('quickActions')}</Text>
+            <View style={styles.actionButtons}>
+              <Button
+                title={t('startRecording')}
+                onPress={() => router.push('/record')}
+                icon={<Mic size={20} color={colors.background} />}
+                style={styles.actionButton}
+              />
+              <Button
+                title={t('viewAlerts')}
+                onPress={() => router.push('/notifications')}
+                variant="outline"
+                icon={<Bell size={20} color={colors.primary} />}
+                style={styles.actionButton}
+              />
+            </View>
+          </Card>
+        </Animated.View>
+
+        {/* Recent Detections */}
+        <Animated.View entering={FadeInDown.delay(500)}>
+          <Card style={styles.recentCard}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('recentDetections')}</Text>
+            {recentDetections.length > 0 ? (
+              recentDetections.map((detection, index) => (
+                <Animated.View 
+                  key={detection.id}
+                  entering={FadeInRight.delay(600 + index * 100)}
+                  style={[styles.detectionItem, { borderBottomColor: colors.border }]}
+                >
+                  <View style={styles.detectionInfo}>
+                    <Text style={[styles.detectionSound, { color: colors.text }]}>
+                      {detection.soundType}
+                    </Text>
+                    <Text style={[styles.detectionTime, { color: colors.textSecondary }]}>
+                      {detection.timestamp.toLocaleTimeString()}
+                    </Text>
+                  </View>
+                  <View style={[styles.confidenceBar, { backgroundColor: colors.border }]}>
+                    <View style={[
+                      styles.confidenceFill,
+                      { 
+                        backgroundColor: colors.primary,
+                        width: `${detection.confidence * 100}%`
+                      }
+                    ]} />
+                  </View>
+                  <Text style={[styles.confidenceText, { color: colors.textSecondary }]}>
+                    {Math.round(detection.confidence * 100)}%
+                  </Text>
+                </Animated.View>
+              ))
+            ) : (
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                {t('noDetectionsYet')}
+              </Text>
+            )}
+          </Card>
+        </Animated.View>
+
+        {/* ML Model Info */}
+        <Animated.View entering={FadeInDown.delay(600)}>
+          <Card style={styles.modelCard}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Detection Capabilities</Text>
+            <View style={styles.modelInfo}>
+              <Text style={[styles.modelText, { color: colors.textSecondary }]}>
+                • Kitchen: Timer, Microwave, Boiling Water, Blender
+              </Text>
+              <Text style={[styles.modelText, { color: colors.textSecondary }]}>
+                • Security: Doorbell, Alarms, Breaking Glass
+              </Text>
+              <Text style={[styles.modelText, { color: colors.success }]}>
+                • Appliances: Washing Machine, Vacuum, AC
+              </Text>
+              <Text style={[styles.modelText, { color: colors.textSecondary }]}>
+                • Pets: Dog Bark, Cat Meow, Bird Chirping
+              </Text>
+              <Text style={[styles.modelText, { color: colors.success }]}>
+                • Emergency: Smoke Alarm, CO Detector
+              </Text>
+            </View>
+          </Card>
+        </Animated.View>
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    paddingTop: 50,
+  },
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 100,
+  },
+  header: {
+    marginBottom: 24,
+  },
+  title: {
+    fontSize: 32,
+    fontFamily: 'Inter-Bold',
+    marginBottom: 4,
+  },
+  subtitle: {
+    fontSize: 16,
+    fontFamily: 'Inter-Regular',
+  },
+  statusCard: {
+    marginBottom: 20,
+    paddingVertical: 16,
+  },
+  visualizerContainer: {
+    marginTop: 16,
+    paddingHorizontal: 20,
+  },
+  statusContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  statusText: {
+    fontSize: 18,
+    fontFamily: 'Inter-SemiBold',
+  },
+  statsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 20,
+  },
+  statCard: {
+    flex: 1,
+    alignItems: 'center',
+    padding: 16,
+    gap: 8,
+  },
+  statNumber: {
+    fontSize: 24,
+    fontFamily: 'Inter-Bold',
+  },
+  statLabel: {
+    fontSize: 12,
+    fontFamily: 'Inter-Medium',
+  },
+  actionsCard: {
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontFamily: 'Inter-SemiBold',
+    marginBottom: 16,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  actionButton: {
+    flex: 1,
+  },
+  recentCard: {
+    marginBottom: 20,
+  },
+  detectionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    gap: 12,
+  },
+  detectionInfo: {
+    flex: 1,
+  },
+  detectionSound: {
+    fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
+  },
+  detectionTime: {
+    fontSize: 12,
+    fontFamily: 'Inter-Regular',
+  },
+  confidenceBar: {
+    width: 60,
+    height: 6,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  confidenceFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  confidenceText: {
+    fontSize: 12,
+    fontFamily: 'Inter-Medium',
+    width: 35,
+    textAlign: 'right',
+  },
+  emptyText: {
+    textAlign: 'center',
+    fontSize: 16,
+    fontFamily: 'Inter-Regular',
+    fontStyle: 'italic',
+  },
+  modelCard: {
+    marginBottom: 20,
+  },
+  modelStatusCard: {
+    marginBottom: 20,
+  },
+  modelHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 16,
+  },
+  modelTitle: {
+    fontSize: 18,
+    fontFamily: 'Inter-SemiBold',
+    flex: 1,
+  },
+  modelStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  modelStatusText: {
+    fontSize: 12,
+    fontFamily: 'Inter-Bold',
+  },
+  modelMetrics: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  metricItem: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  metricLabel: {
+    fontSize: 12,
+    fontFamily: 'Inter-Medium',
+  },
+  metricValue: {
+    fontSize: 14,
+    fontFamily: 'Inter-Bold',
+  },
+  modelInfo: {
+    gap: 8,
+  },
+  modelText: {
+    fontSize: 14,
+    fontFamily: 'Inter-Regular',
+  },
+});
