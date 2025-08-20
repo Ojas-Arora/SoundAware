@@ -214,16 +214,19 @@ export default function SettingsScreen() {
                 </View>
               </View>
               <View style={{width: '40%'}}>
-              <Slider
-                value={modelSettings.sensitivity}
-                onValueChange={(value) => updateModelSettings({ sensitivity: value })}
-                minimumValue={0.1}
-                maximumValue={1.0}
-                step={0.1}
-                minimumTrackTintColor="#007AFF"
-                maximumTrackTintColor="#E5E7EB"
-                thumbTintColor="#007AFF"
-              />
+              <View style={{width: '40%'}}>
+                <Slider
+                  value={modelSettings.sensitivity}
+                  onValueChange={(value) => updateModelSettings({ sensitivity: value })}
+                  minimumValue={0.1}
+                  maximumValue={1.0}
+                  step={0.1}
+                  style={{ width: '100%' }}
+                />
+                <Text style={{textAlign: 'center', fontSize: 12, color: colors.textSecondary, marginTop: 8}}>
+                  {Math.round(modelSettings.sensitivity * 100)}%
+                </Text>
+              </View>
               <Text style={{textAlign: 'center', fontSize: 12, color: '#6B7280'}}>
                 {Math.round(modelSettings.sensitivity * 100)}%
               </Text>
@@ -256,11 +259,9 @@ export default function SettingsScreen() {
                 minimumValue={0.3}
                 maximumValue={0.95}
                 step={0.05}
-                minimumTrackTintColor="#007AFF"
-                maximumTrackTintColor="#E5E7EB"
-                thumbTintColor="#007AFF"
+                style={{ width: '100%' }}
               />
-              <Text style={{textAlign: 'center', fontSize: 12, color: '#6B7280'}}>
+              <Text style={{textAlign: 'center', fontSize: 12, color: colors.textSecondary, marginTop: 8}}>
                 {Math.round(modelSettings.confidenceThreshold * 100)}%
               </Text>
             </View>

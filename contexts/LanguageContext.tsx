@@ -356,7 +356,9 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         setCurrentLanguage(saved);
         i18n.locale = saved;
       } else {
-        const deviceLanguage = Localization.locale.split('-')[0];
+        // Use the correct property from expo-localization
+        const deviceLocale = Localization.getLocales()[0]?.languageTag || 'en';
+        const deviceLanguage = deviceLocale.split('-')[0];
         const supportedLanguage = availableLanguages.find(lang => lang.code === deviceLanguage)?.code || 'en';
         setCurrentLanguage(supportedLanguage);
         i18n.locale = supportedLanguage;

@@ -1,6 +1,9 @@
+import 'react-native-gesture-handler';
 import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { Platform, View } from 'react-native';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { LanguageProvider } from '@/contexts/LanguageContext';
@@ -12,7 +15,8 @@ import * as SplashScreen from 'expo-splash-screen';
 
 SplashScreen.preventAutoHideAsync();
 
-export default function RootLayout() {
+// This is the root layout for the app
+function AppContent() {
   useFrameworkReady();
 
   const [fontsLoaded] = useFonts({
@@ -48,5 +52,19 @@ export default function RootLayout() {
         </SoundDetectionProvider>
       </LanguageProvider>
     </ThemeProvider>
+  );
+}
+
+export default function RootLayout() {
+  // On web, we don't need GestureHandlerRootView
+  if (Platform.OS === 'web') {
+    return <AppContent />;
+  }
+
+  // On mobile, wrap with GestureHandlerRootView
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AppContent />
+    </GestureHandlerRootView>
   );
 }
