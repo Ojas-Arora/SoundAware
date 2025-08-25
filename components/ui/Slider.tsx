@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, useWindowDimensions } from 'react-native';
 import { PanGestureHandler, PanGestureHandlerGestureEvent } from 'react-native-gesture-handler';
 import { useTheme } from '@/contexts/ThemeContext';
 import Animated, { 
@@ -31,9 +31,10 @@ export function Slider({
   style,
 }: SliderProps) {
   const { colors } = useTheme();
-  const translateX = useSharedValue(0);
-  const sliderWidth = 200;
+  const { width } = useWindowDimensions();
+  const sliderWidth = Math.min(width - 80, 300); // Max width of 300 or screen width - 80 for padding
   const thumbSize = 20;
+  const translateX = useSharedValue(0);
 
   React.useEffect(() => {
     const percentage = (value - minimumValue) / (maximumValue - minimumValue);
@@ -87,11 +88,15 @@ const styles = StyleSheet.create({
   container: {
     height: 40,
     justifyContent: 'center',
+    width: '100%',
+    maxWidth: 300,
+    alignSelf: 'center',
   },
   track: {
     height: 4,
     borderRadius: 2,
     position: 'relative',
+    width: '100%',
   },
   trackFill: {
     height: 4,
