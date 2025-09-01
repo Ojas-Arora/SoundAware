@@ -11,7 +11,7 @@ import { AudioVisualizer } from '@/components/ui/AudioVisualizer';
 import { Audio } from 'expo-av';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
-import { Mic, Square, Upload, Play, Pause, FileAudio, CheckCircle } from 'lucide-react-native';
+import { Mic, Square, Upload, Play, Pause, FileAudio, CircleCheck as CheckCircle } from 'lucide-react-native';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 

@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { Slider } from '@/components/ui/Slider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppSettings } from '@/types';
-import { Moon, Sun, Bell, Volume2, Settings as SettingsIcon, Info, Shield, Smartphone, CircleHelp as HelpCircle, Brain, Zap, Database, Download, RotateCcw, FileSliders as Sliders, Activity, Cpu, ChartBar as BarChart3, Globe, CheckCircle } from 'lucide-react-native';
+import { Moon, Sun, Bell, Volume2, Settings as SettingsIcon, Info, Shield, Smartphone, CircleHelp as HelpCircle, Brain, Zap, Database, Download, RotateCcw, FileSliders as Sliders, Activity, Cpu, ChartBar as BarChart3, Globe, CircleCheck as CheckCircle } from 'lucide-react-native';
 
 export default function SettingsScreen() {
   const { isDark, toggleTheme, colors } = useTheme();

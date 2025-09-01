@@ -9,7 +9,7 @@ import { useMLModel } from '@/contexts/MLModelContext';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { AudioVisualizer } from '@/components/ui/AudioVisualizer';
-import { Activity, Mic, Bell, TrendingUp, Volume2, Shield, Brain, Zap, Database, Clock, BarChart3 } from 'lucide-react-native';
+import { Activity, Mic, Bell, TrendingUp, Volume2, Shield, Brain, Zap, Database, Clock, ChartBar as BarChart3 } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInRight } from 'react-native-reanimated';
 
 const { width } = Dimensions.get('window');
