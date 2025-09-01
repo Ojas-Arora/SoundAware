@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useNotifications } from '@/contexts/NotificationContext';
@@ -8,7 +8,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { 
   Bell, CircleCheck as CheckCircle, TriangleAlert as AlertTriangle, 
-  Info, Circle as XCircle, Trash2, Filter, Volume2, Shield 
+  Info, Circle as XCircle, Trash2, Filter, Volume2, Shield, Clock 
 } from 'lucide-react-native';
 import Animated, { FadeInDown, SlideInRight } from 'react-native-reanimated';
 
@@ -39,6 +39,43 @@ export default function NotificationsScreen() {
       case 'error': return colors.error;
       default: return colors.primary;
     }
+  };
+
+  const handleClearAll = () => {
+    Alert.alert(
+      t('clearAll'),
+      'Are you sure you want to clear all notifications?',
+      [
+        { text: t('cancel'), style: 'cancel' },
+        { 
+          text: t('confirm'), 
+          style: 'destructive',
+          onPress: clearAll
+        }
+      ]
+    );
+  };
+
+  const markAllAsRead = () => {
+    notifications.forEach(notification => {
+      if (!notification.read) {
+        markAsRead(notification.id);
+      }
+    });
+  };
+
+  const getTimeAgo = (timestamp: Date) => {
+    const now = new Date();
+    const diffInMinutes = Math.floor((now.getTime() - timestamp.getTime()) / (1000 * 60));
+    
+    if (diffInMinutes < 1) return 'Just now';
+    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+    
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) return `${diffInHours}h ago`;
+    
+    const diffInDays = Math.floor(diffInHours / 24);
+    return `${diffInDays}d ago`;
   };
 
   return (
@@ -78,13 +115,25 @@ export default function NotificationsScreen() {
             ))}
           </View>
           
-          <Button
-            title={t('clearAll')}
-            onPress={clearAll}
-            variant="outline"
-            icon={<Trash2 size={18} color={colors.primary} />}
-            size="small"
-          />
+          <View style={styles.actionButtonsRow}>
+            {unreadCount > 0 && (
+              <Button
+                title="Mark All Read"
+                onPress={markAllAsRead}
+                variant="ghost"
+                icon={<CheckCircle size={18} color={colors.success} />}
+                size="small"
+              />
+            )}
+            
+            <Button
+              title={t('clearAll')}
+              onPress={handleClearAll}
+              variant="outline"
+              icon={<Trash2 size={18} color={colors.error} />}
+              size="small"
+            />
+          </View>
         </Animated.View>
       )}
 
@@ -130,7 +179,11 @@ export default function NotificationsScreen() {
               >
                 <Card style={[
                   styles.notificationCard,
-                  !notification.read && { borderLeftWidth: 4, borderLeftColor: getNotificationColor(notification.type) }
+                  !notification.read && { 
+                    borderLeftWidth: 4, 
+                    borderLeftColor: getNotificationColor(notification.type),
+                    backgroundColor: colors.surface,
+                  }
                 ]}>
                   <View style={styles.notificationContent}>
                     <View style={styles.notificationHeader}>
@@ -143,9 +196,12 @@ export default function NotificationsScreen() {
                         ]}>
                           {notification.title}
                         </Text>
-                        <Text style={[styles.notificationTime, { color: colors.textSecondary }]}>
-                          {notification.timestamp.toLocaleString()}
-                        </Text>
+                        <View style={styles.timeContainer}>
+                          <Clock size={12} color={colors.textSecondary} />
+                          <Text style={[styles.notificationTime, { color: colors.textSecondary }]}>
+                            {getTimeAgo(notification.timestamp)}
+                          </Text>
+                        </View>
                       </View>
                       {!notification.read && (
                         <View style={[styles.unreadDot, { backgroundColor: getNotificationColor(notification.type) }]} />
@@ -214,6 +270,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: 'Inter-Medium',
   },
+  actionButtonsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'flex-end',
+  },
   quickStats: {
     paddingHorizontal: 20,
     marginBottom: 16,
@@ -262,6 +323,11 @@ const styles = StyleSheet.create({
   },
   unreadTitle: {
     fontFamily: 'Inter-Bold',
+  },
+  timeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   notificationTime: {
     fontSize: 12,

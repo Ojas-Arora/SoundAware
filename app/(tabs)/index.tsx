@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Dimensions, TouchableOpacity, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -9,7 +9,7 @@ import { useMLModel } from '@/contexts/MLModelContext';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { AudioVisualizer } from '@/components/ui/AudioVisualizer';
-import { Activity, Mic, Bell, TrendingUp, Volume2, Shield, Brain, Zap, Database } from 'lucide-react-native';
+import { Activity, Mic, Bell, TrendingUp, Volume2, Shield, Brain, Zap, Database, Clock, BarChart3 } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInRight } from 'react-native-reanimated';
 
 const { width } = Dimensions.get('window');
@@ -19,13 +19,15 @@ export default function HomeScreen() {
   const { t } = useLanguage();
   const router = useRouter();
   const { detections, isRecording } = useSoundDetection();
-  const { addNotification } = useNotifications();
+  const { addNotification, unreadCount } = useNotifications();
   const { modelPerformance, isModelLoaded } = useMLModel();
   const [stats, setStats] = useState({
     todayDetections: 0,
     mostCommon: 'None',
     accuracy: 0,
+    weeklyDetections: 0,
   });
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     calculateStats();
@@ -34,6 +36,11 @@ export default function HomeScreen() {
   const calculateStats = () => {
     const today = new Date().toDateString();
     const todayDetections = detections.filter(d => d.timestamp.toDateString() === today).length;
+    
+    // Weekly detections
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    const weeklyDetections = detections.filter(d => d.timestamp >= weekAgo).length;
     
     const soundCounts: { [key: string]: number } = {};
     detections.forEach(d => {
@@ -52,10 +59,25 @@ export default function HomeScreen() {
       todayDetections,
       mostCommon,
       accuracy: Math.round(avgAccuracy * 100),
+      weeklyDetections,
     });
   };
 
+  const onRefresh = React.useCallback(() => {
+    setRefreshing(true);
+    calculateStats();
+    setTimeout(() => {
+      setRefreshing(false);
+      addNotification({
+        title: 'Data Refreshed',
+        message: 'Statistics and data have been updated',
+        type: 'info',
+      });
+    }, 1000);
+  }, []);
+
   const quickStartRecording = () => {
+    router.push('/record');
     addNotification({
       title: 'Recording Started',
       message: 'Sound detection is now active',
@@ -63,11 +85,31 @@ export default function HomeScreen() {
     });
   };
 
-  const recentDetections = detections.slice(0, 3);
+  const recentDetections = detections.slice(0, 5);
+
+  const getTimeAgo = (timestamp: Date) => {
+    const now = new Date();
+    const diffInMinutes = Math.floor((now.getTime() - timestamp.getTime()) / (1000 * 60));
+    
+    if (diffInMinutes < 1) return 'Just now';
+    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+    
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) return `${diffInHours}h ago`;
+    
+    const diffInDays = Math.floor(diffInHours / 24);
+    return `${diffInDays}d ago`;
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
         {/* Header */}
         <Animated.View entering={FadeInDown.delay(100)} style={styles.header}>
           <Text style={[styles.title, { color: colors.text }]}>{t('appName')}</Text>
@@ -81,11 +123,18 @@ export default function HomeScreen() {
           <Card style={[styles.statusCard, { backgroundColor: isRecording ? colors.success : colors.card }]}>
             <View style={styles.statusContent}>
               <Activity size={24} color={isRecording ? colors.background : colors.primary} />
-              <Text style={[styles.statusText, { 
-                color: isRecording ? colors.background : colors.text 
-              }]}>
-                {isRecording ? t('activelyMonitoring') : t('monitoringPaused')}
-              </Text>
+              <View style={styles.statusTextContainer}>
+                <Text style={[styles.statusText, { 
+                  color: isRecording ? colors.background : colors.text 
+                }]}>
+                  {isRecording ? t('activelyMonitoring') : t('monitoringPaused')}
+                </Text>
+                <Text style={[styles.statusSubtext, { 
+                  color: isRecording ? colors.background : colors.textSecondary 
+                }]}>
+                  {isRecording ? 'Listening for sounds...' : 'Tap record to start'}
+                </Text>
+              </View>
             </View>
             
             {/* Audio Visualizer */}
@@ -110,9 +159,9 @@ export default function HomeScreen() {
           </Card>
           
           <Card style={styles.statCard}>
-            <Shield size={20} color={colors.accent} />
-            <Text style={[styles.statNumber, { color: colors.text }]}>{detections.length}</Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{t('total')}</Text>
+            <BarChart3 size={20} color={colors.accent} />
+            <Text style={[styles.statNumber, { color: colors.text }]}>{stats.weeklyDetections}</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>This Week</Text>
           </Card>
         </Animated.View>
 
@@ -165,12 +214,12 @@ export default function HomeScreen() {
             <View style={styles.actionButtons}>
               <Button
                 title={t('startRecording')}
-                onPress={() => router.push('/record')}
+                onPress={quickStartRecording}
                 icon={<Mic size={20} color={colors.background} />}
                 style={styles.actionButton}
               />
               <Button
-                title={t('viewAlerts')}
+                title={`${t('viewAlerts')} ${unreadCount > 0 ? `(${unreadCount})` : ''}`}
                 onPress={() => router.push('/notifications')}
                 variant="outline"
                 icon={<Bell size={20} color={colors.primary} />}
@@ -183,7 +232,13 @@ export default function HomeScreen() {
         {/* Recent Detections */}
         <Animated.View entering={FadeInDown.delay(500)}>
           <Card style={styles.recentCard}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('recentDetections')}</Text>
+            <View style={styles.recentHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('recentDetections')}</Text>
+              <TouchableOpacity onPress={() => router.push('/history')}>
+                <Text style={[styles.viewAllText, { color: colors.primary }]}>View All</Text>
+              </TouchableOpacity>
+            </View>
+            
             {recentDetections.length > 0 ? (
               recentDetections.map((detection, index) => (
                 <Animated.View 
@@ -195,22 +250,27 @@ export default function HomeScreen() {
                     <Text style={[styles.detectionSound, { color: colors.text }]}>
                       {detection.soundType}
                     </Text>
-                    <Text style={[styles.detectionTime, { color: colors.textSecondary }]}>
-                      {detection.timestamp.toLocaleTimeString()}
+                    <View style={styles.detectionMeta}>
+                      <Clock size={12} color={colors.textSecondary} />
+                      <Text style={[styles.detectionTime, { color: colors.textSecondary }]}>
+                        {getTimeAgo(detection.timestamp)}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.confidenceContainer}>
+                    <View style={[styles.confidenceBar, { backgroundColor: colors.border }]}>
+                      <View style={[
+                        styles.confidenceFill,
+                        { 
+                          backgroundColor: colors.primary,
+                          width: `${detection.confidence * 100}%`
+                        }
+                      ]} />
+                    </View>
+                    <Text style={[styles.confidenceText, { color: colors.textSecondary }]}>
+                      {Math.round(detection.confidence * 100)}%
                     </Text>
                   </View>
-                  <View style={[styles.confidenceBar, { backgroundColor: colors.border }]}>
-                    <View style={[
-                      styles.confidenceFill,
-                      { 
-                        backgroundColor: colors.primary,
-                        width: `${detection.confidence * 100}%`
-                      }
-                    ]} />
-                  </View>
-                  <Text style={[styles.confidenceText, { color: colors.textSecondary }]}>
-                    {Math.round(detection.confidence * 100)}%
-                  </Text>
                 </Animated.View>
               ))
             ) : (
@@ -226,21 +286,36 @@ export default function HomeScreen() {
           <Card style={styles.modelCard}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Detection Capabilities</Text>
             <View style={styles.modelInfo}>
-              <Text style={[styles.modelText, { color: colors.textSecondary }]}>
-                • Kitchen: Timer, Microwave, Boiling Water, Blender
-              </Text>
-              <Text style={[styles.modelText, { color: colors.textSecondary }]}>
-                • Security: Doorbell, Alarms, Breaking Glass
-              </Text>
-              <Text style={[styles.modelText, { color: colors.success }]}>
-                • Appliances: Washing Machine, Vacuum, AC
-              </Text>
-              <Text style={[styles.modelText, { color: colors.textSecondary }]}>
-                • Pets: Dog Bark, Cat Meow, Bird Chirping
-              </Text>
-              <Text style={[styles.modelText, { color: colors.success }]}>
-                • Emergency: Smoke Alarm, CO Detector
-              </Text>
+              <View style={styles.capabilityRow}>
+                <Shield size={16} color={colors.success} />
+                <Text style={[styles.modelText, { color: colors.textSecondary }]}>
+                  Kitchen: Timer, Microwave, Boiling Water, Blender
+                </Text>
+              </View>
+              <View style={styles.capabilityRow}>
+                <Bell size={16} color={colors.warning} />
+                <Text style={[styles.modelText, { color: colors.textSecondary }]}>
+                  Security: Doorbell, Alarms, Breaking Glass
+                </Text>
+              </View>
+              <View style={styles.capabilityRow}>
+                <Volume2 size={16} color={colors.primary} />
+                <Text style={[styles.modelText, { color: colors.textSecondary }]}>
+                  Appliances: Washing Machine, Vacuum, AC
+                </Text>
+              </View>
+              <View style={styles.capabilityRow}>
+                <Activity size={16} color={colors.secondary} />
+                <Text style={[styles.modelText, { color: colors.textSecondary }]}>
+                  Pets: Dog Bark, Cat Meow, Bird Chirping
+                </Text>
+              </View>
+              <View style={styles.capabilityRow}>
+                <TrendingUp size={16} color={colors.error} />
+                <Text style={[styles.modelText, { color: colors.textSecondary }]}>
+                  Emergency: Smoke Alarm, CO Detector
+                </Text>
+              </View>
             </View>
           </Card>
         </Animated.View>
@@ -274,18 +349,26 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     paddingVertical: 16,
   },
-  visualizerContainer: {
-    marginTop: 16,
-    paddingHorizontal: 20,
-  },
   statusContent: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
+  statusTextContainer: {
+    flex: 1,
+  },
   statusText: {
     fontSize: 18,
     fontFamily: 'Inter-SemiBold',
+    marginBottom: 2,
+  },
+  statusSubtext: {
+    fontSize: 14,
+    fontFamily: 'Inter-Regular',
+  },
+  visualizerContainer: {
+    marginTop: 16,
+    paddingHorizontal: 20,
   },
   statsRow: {
     flexDirection: 'row',
@@ -305,6 +388,7 @@ const styles = StyleSheet.create({
   statLabel: {
     fontSize: 12,
     fontFamily: 'Inter-Medium',
+    textAlign: 'center',
   },
   actionsCard: {
     marginBottom: 20,
@@ -324,6 +408,16 @@ const styles = StyleSheet.create({
   recentCard: {
     marginBottom: 20,
   },
+  recentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  viewAllText: {
+    fontSize: 14,
+    fontFamily: 'Inter-SemiBold',
+  },
   detectionItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -337,10 +431,20 @@ const styles = StyleSheet.create({
   detectionSound: {
     fontSize: 16,
     fontFamily: 'Inter-SemiBold',
+    marginBottom: 4,
+  },
+  detectionMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   detectionTime: {
     fontSize: 12,
     fontFamily: 'Inter-Regular',
+  },
+  confidenceContainer: {
+    alignItems: 'flex-end',
+    gap: 4,
   },
   confidenceBar: {
     width: 60,
@@ -363,6 +467,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Inter-Regular',
     fontStyle: 'italic',
+    paddingVertical: 20,
   },
   modelCard: {
     marginBottom: 20,
@@ -407,10 +512,16 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Bold',
   },
   modelInfo: {
+    gap: 12,
+  },
+  capabilityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
   },
   modelText: {
     fontSize: 14,
     fontFamily: 'Inter-Regular',
+    flex: 1,
   },
 });

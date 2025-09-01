@@ -18,7 +18,7 @@ interface VoiceInputProps {
 
 export function VoiceInput({ onResult, placeholder = 'Tap to speak...' }: VoiceInputProps) {
   const { colors } = useTheme();
-  const { t } = useLanguage();
+  const { t, currentLanguage } = useLanguage();
   const [isListening, setIsListening] = useState(false);
   const pulseAnim = useSharedValue(1);
 
@@ -41,17 +41,39 @@ export function VoiceInput({ onResult, placeholder = 'Tap to speak...' }: VoiceI
       // Web Speech API simulation
       setIsListening(true);
       
-      // Simulate voice recognition
+      // Simulate voice recognition with language-specific queries
       setTimeout(() => {
-        const sampleQueries = [
-          'How does sound detection work?',
-          'What sounds can you detect?',
-          'How accurate is the model?',
-          'Can I upload audio files?',
-          'How to improve accuracy?'
-        ];
+        const sampleQueries: { [key: string]: string[] } = {
+          en: [
+            'How does sound detection work?',
+            'What sounds can you detect?',
+            'How accurate is the model?',
+            'Can I upload audio files?',
+            'How to improve accuracy?',
+            'Tell me about privacy features',
+            'What are the supported formats?',
+          ],
+          hi: [
+            'ध्वनि पहचान कैसे काम करती है?',
+            'कौन सी आवाजें पहचान सकते हैं?',
+            'मॉडल कितना सटीक है?',
+            'क्या मैं ऑडियो फाइलें अपलोड कर सकता हूं?',
+            'सटीकता कैसे सुधारें?',
+          ],
+          pa: [
+            'ਆਵਾਜ਼ ਪਛਾਣ ਕਿਵੇਂ ਕੰਮ ਕਰਦੀ ਹੈ?',
+            'ਕਿਹੜੀਆਂ ਆਵਾਜ਼ਾਂ ਪਛਾਣ ਸਕਦੇ ਹਾਂ?',
+            'ਮਾਡਲ ਕਿੰਨਾ ਸਹੀ ਹੈ?',
+          ],
+          gu: [
+            'અવાજ ઓળખ કેવી રીતે કામ કરે છે?',
+            'કયા અવાજો ઓળખી શકાય છે?',
+            'મોડેલ કેટલું સચોટ છે?',
+          ],
+        };
         
-        const randomQuery = sampleQueries[Math.floor(Math.random() * sampleQueries.length)];
+        const queries = sampleQueries[currentLanguage] || sampleQueries.en;
+        const randomQuery = queries[Math.floor(Math.random() * queries.length)];
         onResult(randomQuery);
         setIsListening(false);
       }, 2000);
@@ -59,7 +81,12 @@ export function VoiceInput({ onResult, placeholder = 'Tap to speak...' }: VoiceI
       // Mobile speech recognition would go here
       setIsListening(true);
       setTimeout(() => {
-        onResult('Voice input simulated on mobile');
+        const mobileSamples = [
+          'Voice input simulated on mobile',
+          'How does this app work?',
+          'What sounds can be detected?',
+        ];
+        onResult(mobileSamples[Math.floor(Math.random() * mobileSamples.length)]);
         setIsListening(false);
       }, 2000);
     }

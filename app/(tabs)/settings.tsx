@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { Slider } from '@/components/ui/Slider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppSettings } from '@/types';
-import { Moon, Sun, Bell, Volume2, Settings as SettingsIcon, Info, Shield, Smartphone, CircleHelp as HelpCircle, Brain, Zap, Database, Download, RotateCcw, FileSliders as Sliders, Activity, Cpu, ChartBar as BarChart3 } from 'lucide-react-native';
+import { Moon, Sun, Bell, Volume2, Settings as SettingsIcon, Info, Shield, Smartphone, CircleHelp as HelpCircle, Brain, Zap, Database, Download, RotateCcw, FileSliders as Sliders, Activity, Cpu, ChartBar as BarChart3, Globe, CheckCircle } from 'lucide-react-native';
 
 export default function SettingsScreen() {
   const { isDark, toggleTheme, colors } = useTheme();
@@ -51,8 +51,19 @@ export default function SettingsScreen() {
     
     try {
       await AsyncStorage.setItem('app_settings', JSON.stringify(newSettings));
+      
+      addNotification({
+        title: 'Settings Updated',
+        message: `${key} has been updated successfully`,
+        type: 'success',
+      });
     } catch (error) {
       console.log('Error saving settings:', error);
+      addNotification({
+        title: 'Settings Error',
+        message: 'Failed to save settings',
+        type: 'error',
+      });
     }
   };
 
@@ -61,9 +72,9 @@ export default function SettingsScreen() {
       'Reset Settings',
       'Are you sure you want to reset all settings to default?',
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('cancel'), style: 'cancel' },
         { 
-          text: 'Reset', 
+          text: t('reset'), 
           style: 'destructive',
           onPress: async () => {
             const defaultSettings: AppSettings = {
@@ -74,10 +85,27 @@ export default function SettingsScreen() {
             };
             setSettings(defaultSettings);
             await AsyncStorage.setItem('app_settings', JSON.stringify(defaultSettings));
+            
+            addNotification({
+              title: 'Settings Reset',
+              message: 'All settings have been reset to default values',
+              type: 'info',
+            });
           }
         }
       ]
     );
+  };
+
+  const handleLanguageChange = async (languageCode: string) => {
+    await setLanguage(languageCode);
+    setShowLanguageSelector(false);
+    
+    addNotification({
+      title: 'Language Changed',
+      message: `Language updated to ${availableLanguages.find(l => l.code === languageCode)?.nativeName}`,
+      type: 'success',
+    });
   };
 
   const SettingRow = ({ 
@@ -140,23 +168,24 @@ export default function SettingsScreen() {
         {/* Language Settings */}
         <Animated.View entering={FadeInDown.delay(250)}>
           <Card style={styles.settingsCard}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('language')}</Text>
+            <View style={styles.sectionHeader}>
+              <Globe size={24} color={colors.accent} />
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('language')}</Text>
+            </View>
             
             <TouchableOpacity
-              style={styles.languageSelector}
+              style={[styles.languageSelector, { borderColor: colors.border }]}
               onPress={() => setShowLanguageSelector(!showLanguageSelector)}
             >
-              <View style={styles.settingInfo}>
-                <Bell size={24} color={colors.accent} />
-                <View style={styles.settingText}>
-                  <Text style={[styles.settingTitle, { color: colors.text }]}>
-                    {availableLanguages.find(lang => lang.code === currentLanguage)?.nativeName}
-                  </Text>
-                  <Text style={[styles.settingSubtitle, { color: colors.textSecondary }]}>
-                    {t('selectLanguage')}
-                  </Text>
-                </View>
+              <View style={styles.languageSelectorContent}>
+                <Text style={[styles.selectedLanguage, { color: colors.text }]}>
+                  {availableLanguages.find(lang => lang.code === currentLanguage)?.nativeName}
+                </Text>
+                <Text style={[styles.selectedLanguageSubtext, { color: colors.textSecondary }]}>
+                  {availableLanguages.find(lang => lang.code === currentLanguage)?.name}
+                </Text>
               </View>
+              <CheckCircle size={20} color={colors.success} />
             </TouchableOpacity>
             
             {showLanguageSelector && (
@@ -171,23 +200,32 @@ export default function SettingsScreen() {
                         borderColor: colors.border,
                       }
                     ]}
-                    onPress={() => {
-                      setLanguage(lang.code);
-                      setShowLanguageSelector(false);
-                    }}
+                    onPress={() => handleLanguageChange(lang.code)}
                   >
-                    <Text style={[
-                      styles.languageOptionText,
-                      { color: currentLanguage === lang.code ? colors.background : colors.text }
-                    ]}>
-                      {lang.nativeName} ({lang.name})
-                    </Text>
+                    <View style={styles.languageOptionContent}>
+                      <Text style={[
+                        styles.languageOptionText,
+                        { color: currentLanguage === lang.code ? colors.background : colors.text }
+                      ]}>
+                        {lang.nativeName}
+                      </Text>
+                      <Text style={[
+                        styles.languageOptionSubtext,
+                        { color: currentLanguage === lang.code ? colors.background : colors.textSecondary }
+                      ]}>
+                        {lang.name}
+                      </Text>
+                    </View>
+                    {currentLanguage === lang.code && (
+                      <CheckCircle size={16} color={colors.background} />
+                    )}
                   </TouchableOpacity>
                 ))}
               </View>
             )}
           </Card>
         </Animated.View>
+
         {/* Audio Settings */}
         <Animated.View entering={FadeInDown.delay(300)}>
           <Card style={styles.settingsCard}>
@@ -213,24 +251,19 @@ export default function SettingsScreen() {
                   </Text>
                 </View>
               </View>
-              <View style={{width: '40%'}}>
-              <View style={{width: '40%'}}>
+              <View style={styles.sliderContainer}>
                 <Slider
                   value={modelSettings.sensitivity}
                   onValueChange={(value) => updateModelSettings({ sensitivity: value })}
                   minimumValue={0.1}
                   maximumValue={1.0}
                   step={0.1}
-                  style={{ width: '100%' }}
+                  style={styles.slider}
                 />
-                <Text style={{textAlign: 'center', fontSize: 12, color: colors.textSecondary, marginTop: 8}}>
+                <Text style={[styles.sliderValue, { color: colors.textSecondary }]}>
                   {Math.round(modelSettings.sensitivity * 100)}%
                 </Text>
               </View>
-              <Text style={{textAlign: 'center', fontSize: 12, color: '#6B7280'}}>
-                {Math.round(modelSettings.sensitivity * 100)}%
-              </Text>
-            </View>
             </View>
           </Card>
         </Animated.View>
@@ -252,19 +285,19 @@ export default function SettingsScreen() {
                   </Text>
                 </View>
               </View>
-            <View style={{width: '40%'}}>
-              <Slider
-                value={modelSettings.confidenceThreshold}
-                onValueChange={(value) => updateModelSettings({ confidenceThreshold: value })}
-                minimumValue={0.3}
-                maximumValue={0.95}
-                step={0.05}
-                style={{ width: '100%' }}
-              />
-              <Text style={{textAlign: 'center', fontSize: 12, color: colors.textSecondary, marginTop: 8}}>
-                {Math.round(modelSettings.confidenceThreshold * 100)}%
-              </Text>
-            </View>
+              <View style={styles.sliderContainer}>
+                <Slider
+                  value={modelSettings.confidenceThreshold}
+                  onValueChange={(value) => updateModelSettings({ confidenceThreshold: value })}
+                  minimumValue={0.3}
+                  maximumValue={0.95}
+                  step={0.05}
+                  style={styles.slider}
+                />
+                <Text style={[styles.sliderValue, { color: colors.textSecondary }]}>
+                  {Math.round(modelSettings.confidenceThreshold * 100)}%
+                </Text>
+              </View>
             </View>
             
             <SettingRow
@@ -307,13 +340,19 @@ export default function SettingsScreen() {
                       </Text>
                     </View>
                   </View>
-                  <Slider
-                    value={modelSettings.batchSize}
-                    onValueChange={(value) => updateModelSettings({ batchSize: Math.round(value) })}
-                    minimumValue={8}
-                    maximumValue={128}
-                    step={8}
-                  />
+                  <View style={styles.sliderContainer}>
+                    <Slider
+                      value={modelSettings.batchSize}
+                      onValueChange={(value) => updateModelSettings({ batchSize: Math.round(value) })}
+                      minimumValue={8}
+                      maximumValue={128}
+                      step={8}
+                      style={styles.slider}
+                    />
+                    <Text style={[styles.sliderValue, { color: colors.textSecondary }]}>
+                      {modelSettings.batchSize}
+                    </Text>
+                  </View>
                 </View>
                 
                 <View style={styles.settingRow}>
@@ -328,13 +367,19 @@ export default function SettingsScreen() {
                       </Text>
                     </View>
                   </View>
-                  <Slider
-                    value={modelSettings.maxDuration}
-                    onValueChange={(value) => updateModelSettings({ maxDuration: Math.round(value) })}
-                    minimumValue={10}
-                    maximumValue={120}
-                    step={5}
-                  />
+                  <View style={styles.sliderContainer}>
+                    <Slider
+                      value={modelSettings.maxDuration}
+                      onValueChange={(value) => updateModelSettings({ maxDuration: Math.round(value) })}
+                      minimumValue={10}
+                      maximumValue={120}
+                      step={5}
+                      style={styles.slider}
+                    />
+                    <Text style={[styles.sliderValue, { color: colors.textSecondary }]}>
+                      {modelSettings.maxDuration}s
+                    </Text>
+                  </View>
                 </View>
                 
                 <View style={styles.settingRow}>
@@ -349,18 +394,25 @@ export default function SettingsScreen() {
                       </Text>
                     </View>
                   </View>
-                  <Slider
-                    value={modelSettings.sampleRate}
-                    onValueChange={(value) => updateModelSettings({ sampleRate: Math.round(value) })}
-                    minimumValue={16000}
-                    maximumValue={48000}
-                    step={4000}
-                  />
+                  <View style={styles.sliderContainer}>
+                    <Slider
+                      value={modelSettings.sampleRate}
+                      onValueChange={(value) => updateModelSettings({ sampleRate: Math.round(value) })}
+                      minimumValue={16000}
+                      maximumValue={48000}
+                      step={4000}
+                      style={styles.slider}
+                    />
+                    <Text style={[styles.sliderValue, { color: colors.textSecondary }]}>
+                      {modelSettings.sampleRate}Hz
+                    </Text>
+                  </View>
                 </View>
               </View>
             )}
           </Card>
         </Animated.View>
+
         {/* Notification Settings */}
         <Animated.View entering={FadeInDown.delay(400)}>
           <Card style={styles.settingsCard}>
@@ -438,11 +490,18 @@ export default function SettingsScreen() {
                   'Reset ML Model',
                   'This will reset all model settings to default values.',
                   [
-                    { text: 'Cancel', style: 'cancel' },
+                    { text: t('cancel'), style: 'cancel' },
                     { 
-                      text: 'Reset', 
+                      text: t('reset'), 
                       style: 'destructive',
-                      onPress: resetModel
+                      onPress: () => {
+                        resetModel();
+                        addNotification({
+                          title: 'Model Reset',
+                          message: 'ML model settings have been reset to defaults',
+                          type: 'info',
+                        });
+                      }
                     }
                   ]
                 );
@@ -481,6 +540,12 @@ const styles = StyleSheet.create({
   settingsCard: {
     marginBottom: 20,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 20,
+  },
   sectionTitle: {
     fontSize: 20,
     fontFamily: 'Inter-SemiBold',
@@ -498,7 +563,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
     gap: 16,
-    maxWidth: '70%',
+    maxWidth: '60%',
   },
   settingText: {
     flex: 1,
@@ -514,6 +579,65 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'Inter-Regular',
     flexWrap: 'wrap',
+  },
+  sliderContainer: {
+    width: '35%',
+    alignItems: 'center',
+  },
+  slider: {
+    width: '100%',
+  },
+  sliderValue: {
+    fontSize: 12,
+    fontFamily: 'Inter-Medium',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  languageSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  languageSelectorContent: {
+    flex: 1,
+  },
+  selectedLanguage: {
+    fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
+    marginBottom: 2,
+  },
+  selectedLanguageSubtext: {
+    fontSize: 14,
+    fontFamily: 'Inter-Regular',
+  },
+  languageOptions: {
+    gap: 8,
+    marginTop: 12,
+  },
+  languageOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  languageOptionContent: {
+    flex: 1,
+  },
+  languageOptionText: {
+    fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
+    marginBottom: 2,
+  },
+  languageOptionSubtext: {
+    fontSize: 14,
+    fontFamily: 'Inter-Regular',
   },
   aboutRow: {
     flexDirection: 'row',
@@ -532,24 +656,6 @@ const styles = StyleSheet.create({
   aboutValue: {
     fontSize: 14,
     fontFamily: 'Inter-Regular',
-  },
-  languageSelector: {
-    marginBottom: 16,
-  },
-  languageOptions: {
-    gap: 8,
-    marginTop: 12,
-  },
-  languageOption: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  languageOptionText: {
-    fontSize: 16,
-    fontFamily: 'Inter-Medium',
-    textAlign: 'center',
   },
   advancedToggle: {
     flexDirection: 'row',

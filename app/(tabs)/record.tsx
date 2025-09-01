@@ -11,7 +11,7 @@ import { AudioVisualizer } from '@/components/ui/AudioVisualizer';
 import { Audio } from 'expo-av';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
-import { Mic, Square, Upload, Play, Pause } from 'lucide-react-native';
+import { Mic, Square, Upload, Play, Pause, FileAudio, CheckCircle } from 'lucide-react-native';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
@@ -34,9 +34,14 @@ export default function RecordScreen() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [lastPrediction, setLastPrediction] = useState<string | null>(null);
   const [uploadedFile, setUploadedFile] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [sound, setSound] = useState<Audio.Sound | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
   
   const pulseAnim = useSharedValue(1);
   const waveAnim = useSharedValue(0);
+  const durationInterval = useRef<NodeJS.Timeout | null>(null);
 
   const animatedPulseStyle = useAnimatedStyle(() => {
     return {
@@ -55,10 +60,28 @@ export default function RecordScreen() {
     if (isRecording) {
       pulseAnim.value = withRepeat(withTiming(1.1, { duration: 1000 }), -1, true);
       waveAnim.value = withRepeat(withTiming(1, { duration: 2000 }), -1, true);
+      
+      // Start duration counter
+      durationInterval.current = setInterval(() => {
+        setRecordingDuration(prev => prev + 1);
+      }, 1000);
     } else {
       pulseAnim.value = withTiming(1);
       waveAnim.value = withTiming(0);
+      
+      // Clear duration counter
+      if (durationInterval.current) {
+        clearInterval(durationInterval.current);
+        durationInterval.current = null;
+      }
+      setRecordingDuration(0);
     }
+
+    return () => {
+      if (durationInterval.current) {
+        clearInterval(durationInterval.current);
+      }
+    };
   }, [isRecording]);
 
   async function startRecording() {
@@ -66,7 +89,10 @@ export default function RecordScreen() {
       if (permissionResponse?.status !== 'granted') {
         const permission = await requestPermission();
         if (permission.status !== 'granted') {
-          Alert.alert('Permission required', 'Audio recording permission is needed');
+          Alert.alert(
+            'Permission Required', 
+            'Audio recording permission is needed to detect sounds'
+          );
           return;
         }
       }
@@ -94,7 +120,7 @@ export default function RecordScreen() {
       });
     } catch (err) {
       console.error('Failed to start recording', err);
-      Alert.alert('Error', 'Failed to start recording');
+      Alert.alert('Error', 'Failed to start recording. Please try again.');
     }
   }
 
@@ -116,6 +142,11 @@ export default function RecordScreen() {
     } catch (err) {
       console.error('Failed to stop recording', err);
       setIsProcessing(false);
+      addNotification({
+        title: 'Recording Error',
+        message: 'Failed to process recording. Please try again.',
+        type: 'error',
+      });
     }
   }
 
@@ -135,7 +166,7 @@ export default function RecordScreen() {
 
       addNotification({
         title: 'Sound Detected',
-        message: `Identified: ${result.soundType}`,
+        message: `Identified: ${result.soundType} with ${Math.round(result.confidence * 100)}% confidence`,
         type: result.confidence > 0.8 ? 'success' : 'warning',
       });
 
@@ -146,13 +177,15 @@ export default function RecordScreen() {
       setIsProcessing(false);
       addNotification({
         title: 'Processing Error',
-        message: 'Failed to analyze audio file',
+        message: 'Failed to analyze audio file. Please try again.',
         type: 'error',
       });
     }
   };
 
   const pickAudioFile = async () => {
+    setIsUploading(true);
+    
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: ['audio/*'],
@@ -169,6 +202,7 @@ export default function RecordScreen() {
             message: 'Please select a file smaller than 50MB',
             type: 'error',
           });
+          setIsUploading(false);
           return;
         }
 
@@ -182,11 +216,13 @@ export default function RecordScreen() {
             message: 'Please select MP3, WAV, M4A, AAC, or FLAC files',
             type: 'error',
           });
+          setIsUploading(false);
           return;
         }
 
         setUploadedFile(file.name);
         setIsProcessing(true);
+        setIsUploading(false);
 
         addNotification({
           title: 'File Uploaded',
@@ -195,15 +231,67 @@ export default function RecordScreen() {
         });
 
         await processAudioFile(file.uri);
+      } else {
+        setIsUploading(false);
       }
     } catch (error) {
       console.error('Error picking file:', error);
+      setIsUploading(false);
       addNotification({
         title: 'Upload Error',
-        message: 'Failed to upload audio file',
+        message: 'Failed to upload audio file. Please try again.',
         type: 'error',
       });
     }
+  };
+
+  const playLastRecording = async () => {
+    try {
+      if (sound) {
+        await sound.unloadAsync();
+      }
+
+      if (recording) {
+        const uri = recording.getURI();
+        if (uri) {
+          const { sound: newSound } = await Audio.Sound.createAsync({ uri });
+          setSound(newSound);
+          setIsPlaying(true);
+          
+          await newSound.playAsync();
+          
+          newSound.setOnPlaybackStatusUpdate((status) => {
+            if (status.isLoaded && status.didJustFinish) {
+              setIsPlaying(false);
+            }
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error playing audio:', error);
+      addNotification({
+        title: 'Playback Error',
+        message: 'Failed to play audio',
+        type: 'error',
+      });
+    }
+  };
+
+  const pausePlayback = async () => {
+    try {
+      if (sound) {
+        await sound.pauseAsync();
+        setIsPlaying(false);
+      }
+    } catch (error) {
+      console.error('Error pausing audio:', error);
+    }
+  };
+
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   return (
@@ -243,11 +331,12 @@ export default function RecordScreen() {
                   { backgroundColor: isRecording ? colors.error : colors.primary }
                 ]}
                 icon={isRecording ? <Square size={32} color={colors.background} /> : <Mic size={32} color={colors.background} />}
+                disabled={isProcessing || isUploading}
               />
             </Animated.View>
 
             <Text style={[styles.recordingStatus, { color: colors.textSecondary }]}>
-              {isProcessing ? t('processing') : isRecording ? t('recording') : t('tapToStart')}
+              {isProcessing ? t('processing') : isRecording ? `${t('recording')} ${formatDuration(recordingDuration)}` : t('tapToStart')}
             </Text>
             
             {/* Waveform Visualizer */}
@@ -261,7 +350,10 @@ export default function RecordScreen() {
         {lastPrediction && (
           <Animated.View entering={FadeInDown.delay(300)}>
             <Card style={styles.predictionCard}>
-              <Text style={[styles.predictionTitle, { color: colors.text }]}>{t('lastDetection')}</Text>
+              <View style={styles.predictionHeader}>
+                <CheckCircle size={24} color={colors.success} />
+                <Text style={[styles.predictionTitle, { color: colors.text }]}>{t('lastDetection')}</Text>
+              </View>
               <Text style={[styles.predictionText, { color: colors.primary }]}>
                 {lastPrediction}
               </Text>
@@ -272,23 +364,31 @@ export default function RecordScreen() {
         {/* Upload Option */}
         <Animated.View entering={FadeInDown.delay(400)}>
           <Card style={styles.uploadCard}>
-            <Text style={[styles.uploadTitle, { color: colors.text }]}>{t('uploadAudioFile')}</Text>
+            <View style={styles.uploadHeader}>
+              <FileAudio size={24} color={colors.secondary} />
+              <Text style={[styles.uploadTitle, { color: colors.text }]}>{t('uploadAudioFile')}</Text>
+            </View>
             <Text style={[styles.uploadSubtitle, { color: colors.textSecondary }]}>
               {t('analyzePreRecorded')}
             </Text>
+            <Text style={[styles.supportedFormats, { color: colors.textSecondary }]}>
+              Supported: MP3, WAV, M4A, AAC, FLAC (Max 50MB)
+            </Text>
             <Button
-              title={t('chooseFile')}
-              onPress={() => {
-                pickAudioFile();
-              }}
+              title={isUploading ? 'Uploading...' : t('chooseFile')}
+              onPress={pickAudioFile}
               variant="outline"
               icon={<Upload size={20} color={colors.primary} />}
               style={styles.uploadButton}
+              disabled={isUploading || isProcessing || isRecording}
             />
             {uploadedFile && (
-              <Text style={[styles.uploadedFileName, { color: colors.textSecondary }]}>
-                Last uploaded: {uploadedFile}
-              </Text>
+              <View style={styles.uploadedFileContainer}>
+                <CheckCircle size={16} color={colors.success} />
+                <Text style={[styles.uploadedFileName, { color: colors.success }]}>
+                  Last uploaded: {uploadedFile}
+                </Text>
+              </View>
             )}
           </Card>
         </Animated.View>
@@ -300,24 +400,59 @@ export default function RecordScreen() {
             <View style={styles.controlsRow}>
               <Button
                 title={t('playLast')}
-                onPress={() => {
-                  addNotification({
-                    title: 'Playback',
-                    message: 'Playing last recorded audio',
-                    type: 'info',
-                  });
-                }}
+                onPress={playLastRecording}
                 variant="ghost"
                 icon={<Play size={18} color={colors.primary} />}
                 size="small"
+                disabled={!recording || isRecording || isPlaying}
               />
               <Button
                 title={t('pause')}
-                onPress={() => {}}
+                onPress={pausePlayback}
                 variant="ghost"
                 icon={<Pause size={18} color={colors.primary} />}
                 size="small"
+                disabled={!isPlaying}
               />
+            </View>
+            
+            {/* Recording Tips */}
+            <View style={styles.tipsContainer}>
+              <Text style={[styles.tipsTitle, { color: colors.text }]}>Recording Tips:</Text>
+              <Text style={[styles.tipText, { color: colors.textSecondary }]}>
+                • Hold device close to sound source
+              </Text>
+              <Text style={[styles.tipText, { color: colors.textSecondary }]}>
+                • Minimize background noise
+              </Text>
+              <Text style={[styles.tipText, { color: colors.textSecondary }]}>
+                • Record for 3-10 seconds for best results
+              </Text>
+            </View>
+          </Card>
+        </Animated.View>
+
+        {/* Model Status */}
+        <Animated.View entering={FadeInDown.delay(600)}>
+          <Card style={styles.statusCard}>
+            <Text style={[styles.statusTitle, { color: colors.text }]}>Detection Status</Text>
+            <View style={styles.statusRow}>
+              <Text style={[styles.statusLabel, { color: colors.textSecondary }]}>Sensitivity:</Text>
+              <Text style={[styles.statusValue, { color: colors.primary }]}>
+                {Math.round(modelSettings.sensitivity * 100)}%
+              </Text>
+            </View>
+            <View style={styles.statusRow}>
+              <Text style={[styles.statusLabel, { color: colors.textSecondary }]}>Confidence Threshold:</Text>
+              <Text style={[styles.statusValue, { color: colors.primary }]}>
+                {Math.round(modelSettings.confidenceThreshold * 100)}%
+              </Text>
+            </View>
+            <View style={styles.statusRow}>
+              <Text style={[styles.statusLabel, { color: colors.textSecondary }]}>Max Duration:</Text>
+              <Text style={[styles.statusValue, { color: colors.primary }]}>
+                {modelSettings.maxDuration}s
+              </Text>
             </View>
           </Card>
         </Animated.View>
@@ -380,38 +515,58 @@ const styles = StyleSheet.create({
   },
   predictionCard: {
     marginBottom: 20,
+  },
+  predictionHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
   },
   predictionTitle: {
     fontSize: 18,
     fontFamily: 'Inter-SemiBold',
-    marginBottom: 8,
   },
   predictionText: {
     fontSize: 24,
     fontFamily: 'Inter-Bold',
+    textAlign: 'center',
   },
   uploadCard: {
     marginBottom: 20,
   },
+  uploadHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
   uploadTitle: {
     fontSize: 18,
     fontFamily: 'Inter-SemiBold',
-    marginBottom: 4,
   },
   uploadSubtitle: {
     fontSize: 14,
     fontFamily: 'Inter-Regular',
+    marginBottom: 8,
+  },
+  supportedFormats: {
+    fontSize: 12,
+    fontFamily: 'Inter-Regular',
     marginBottom: 16,
+    fontStyle: 'italic',
   },
   uploadButton: {
     alignSelf: 'flex-start',
   },
+  uploadedFileContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 12,
+  },
   uploadedFileName: {
     fontSize: 12,
-    fontFamily: 'Inter-Regular',
-    marginTop: 8,
-    fontStyle: 'italic',
+    fontFamily: 'Inter-Medium',
   },
   controlsCard: {
     marginBottom: 20,
@@ -424,5 +579,44 @@ const styles = StyleSheet.create({
   controlsRow: {
     flexDirection: 'row',
     gap: 12,
+    marginBottom: 16,
+  },
+  tipsContainer: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  tipsTitle: {
+    fontSize: 14,
+    fontFamily: 'Inter-SemiBold',
+    marginBottom: 8,
+  },
+  tipText: {
+    fontSize: 12,
+    fontFamily: 'Inter-Regular',
+    marginBottom: 4,
+  },
+  statusCard: {
+    marginBottom: 20,
+  },
+  statusTitle: {
+    fontSize: 18,
+    fontFamily: 'Inter-SemiBold',
+    marginBottom: 16,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  statusLabel: {
+    fontSize: 14,
+    fontFamily: 'Inter-Regular',
+  },
+  statusValue: {
+    fontSize: 14,
+    fontFamily: 'Inter-Bold',
   },
 });
