@@ -59,6 +59,7 @@ function AppContent() {
 }
 
 export default function RootLayout() {
+  useFrameworkReady();
   // On web, we don't need GestureHandlerRootView
   if (Platform.OS === 'web') {
     return <AppContent />;
