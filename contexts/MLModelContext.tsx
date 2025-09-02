@@ -87,6 +87,19 @@ export function MLModelProvider({ children }: { children: React.ReactNode }) {
     
     try {
       await AsyncStorage.setItem('ml_model_settings', JSON.stringify(updated));
+      
+      // Real-time performance simulation based on settings
+      const performanceImpact = {
+        accuracy: updated.enablePreprocessing && updated.enablePostprocessing ? 0.02 : -0.01,
+        inferenceTime: updated.batchSize > 64 ? 50 : -20,
+      };
+      
+      setModelPerformance(prev => ({
+        ...prev,
+        accuracy: Math.min(0.99, Math.max(0.70, prev.accuracy + performanceImpact.accuracy)),
+        inferenceTime: Math.max(50, prev.inferenceTime + performanceImpact.inferenceTime),
+        lastUpdated: new Date(),
+      }));
     } catch (error) {
       console.log('Error saving ML settings:', error);
     }

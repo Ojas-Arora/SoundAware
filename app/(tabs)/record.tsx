@@ -114,8 +114,8 @@ export default function RecordScreen() {
       }
 
       addNotification({
-        title: 'Recording Started',
-        message: 'Listening for household sounds...',
+        title: currentLanguage === 'hi' ? 'रिकॉर्डिंग शुरू हुई' : 'Recording Started',
+        message: currentLanguage === 'hi' ? 'घरेलू आवाजों को सुन रहे हैं...' : 'Listening for household sounds...',
         type: 'info',
       });
     } catch (err) {
@@ -165,8 +165,10 @@ export default function RecordScreen() {
       setIsProcessing(false);
 
       addNotification({
-        title: 'Sound Detected',
-        message: `Identified: ${result.soundType} with ${Math.round(result.confidence * 100)}% confidence`,
+        title: currentLanguage === 'hi' ? 'ध्वनि पहचानी गई' : 'Sound Detected',
+        message: currentLanguage === 'hi' 
+          ? `पहचानी गई: ${result.soundType} ${Math.round(result.confidence * 100)}% विश्वास के साथ`
+          : `Identified: ${result.soundType} with ${Math.round(result.confidence * 100)}% confidence`,
         type: result.confidence > 0.8 ? 'success' : 'warning',
       });
 

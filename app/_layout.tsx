@@ -10,6 +10,7 @@ import { LanguageProvider } from '@/contexts/LanguageContext';
 import { SoundDetectionProvider } from '@/contexts/SoundDetectionContext';
 import { NotificationProvider } from '@/contexts/NotificationContext';
 import { MLModelProvider } from '@/contexts/MLModelContext';
+import { AIAssistantProvider } from '@/contexts/AIAssistantContext';
 import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import * as SplashScreen from 'expo-splash-screen';
 
@@ -42,11 +43,13 @@ function AppContent() {
         <SoundDetectionProvider>
           <NotificationProvider>
             <MLModelProvider>
-              <Stack screenOptions={{ headerShown: false }}>
-                <Stack.Screen name="(tabs)" />
-                <Stack.Screen name="+not-found" />
-              </Stack>
-              <StatusBar style="auto" />
+              <AIAssistantProvider>
+                <Stack screenOptions={{ headerShown: false }}>
+                  <Stack.Screen name="(tabs)" />
+                  <Stack.Screen name="+not-found" />
+                </Stack>
+                <StatusBar style="auto" />
+              </AIAssistantProvider>
             </MLModelProvider>
           </NotificationProvider>
         </SoundDetectionProvider>

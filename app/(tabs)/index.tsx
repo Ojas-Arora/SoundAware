@@ -69,18 +69,18 @@ export default function HomeScreen() {
     setTimeout(() => {
       setRefreshing(false);
       addNotification({
-        title: 'Data Refreshed',
-        message: 'Statistics and data have been updated',
+        title: currentLanguage === 'hi' ? 'डेटा रिफ्रेश हुआ' : 'Data Refreshed',
+        message: currentLanguage === 'hi' ? 'आंकड़े और डेटा अपडेट हो गए हैं' : 'Statistics and data have been updated',
         type: 'info',
       });
     }, 1000);
-  }, []);
+  }, [currentLanguage]);
 
   const quickStartRecording = () => {
     router.push('/record');
     addNotification({
-      title: 'Recording Started',
-      message: 'Sound detection is now active',
+      title: currentLanguage === 'hi' ? 'रिकॉर्डिंग शुरू हुई' : 'Recording Started',
+      message: currentLanguage === 'hi' ? 'ध्वनि पहचान अब सक्रिय है' : 'Sound detection is now active',
       type: 'info',
     });
   };

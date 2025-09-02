@@ -2,26 +2,31 @@ import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAIAssistant } from '@/contexts/AIAssistantContext';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { VoiceInput } from '@/components/ui/VoiceInput';
 import { ChatMessage } from '@/types';
-import { Send, Bot, User, Sparkles } from 'lucide-react-native';
+import { Send, Bot, User, Sparkles, Lightbulb } from 'lucide-react-native';
 import Animated, { FadeInDown, SlideInRight, SlideInLeft } from 'react-native-reanimated';
 
 export default function ChatbotScreen() {
   const { colors } = useTheme();
   const { t, currentLanguage } = useLanguage();
+  const { generateResponse, isProcessing } = useAIAssistant();
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: '1',
-      text: 'Hello! I\'m your AI assistant for sound classification. Ask me anything about the app, sound detection, or how to use the features!',
+      text: currentLanguage === 'hi' 
+        ? 'नमस्ते! मैं ध्वनि वर्गीकरण के लिए आपका AI सहायक हूं। ऐप, ध्वनि पहचान, या सुविधाओं के उपयोग के बारे में मुझसे कुछ भी पूछें!'
+        : currentLanguage === 'pa'
+        ? 'ਸਤ ਸ੍ਰੀ ਅਕਾਲ! ਮੈਂ ਆਵਾਜ਼ ਵਰਗੀਕਰਨ ਲਈ ਤੁਹਾਡਾ AI ਸਹਾਇਕ ਹਾਂ। ਐਪ, ਆਵਾਜ਼ ਪਛਾਣ, ਜਾਂ ਸੁਵਿਧਾਵਾਂ ਬਾਰੇ ਮੈਨੂੰ ਕੁਝ ਵੀ ਪੁੱਛੋ!'
+        : 'Hello! I\'m your advanced AI assistant for sound classification. Ask me anything about the app, sound detection, or how to use the features!',
       isUser: false,
       timestamp: new Date(),
     }
   ]);
   const [inputText, setInputText] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
 
   const predefinedResponses: { [key: string]: { [key: string]: string } } = {
@@ -76,35 +81,45 @@ export default function ChatbotScreen() {
     };
 
     setMessages(prev => [...prev, newMessage]);
+    const userQuery = inputText.trim();
     setInputText('');
-    setIsTyping(true);
 
-    // Simulate AI response
-    setTimeout(() => {
-      const userMessage = inputText.toLowerCase();
-      let response = 'I understand you\'re asking about sound classification. Could you be more specific about what you\'d like to know?';
-
-      // Get responses for current language
-      const languageResponses = predefinedResponses[currentLanguage] || predefinedResponses.en;
-
-      // Find matching response
-      for (const [key, value] of Object.entries(languageResponses)) {
-        if (userMessage.includes(key.toLowerCase())) {
-          response = value;
-          break;
-        }
-      }
-
+    
+    // Generate AI response
+    generateResponse(userQuery).then((aiResponse) => {
       const aiMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
-        text: response,
+        text: aiResponse.text,
         isUser: false,
         timestamp: new Date(),
       };
 
       setMessages(prev => [...prev, aiMessage]);
-      setIsTyping(false);
-    }, 1500);
+      
+      // Add suggestion buttons if available
+      if (aiResponse.suggestions && aiResponse.suggestions.length > 0) {
+        setTimeout(() => {
+          const suggestionMessage: ChatMessage = {
+            id: (Date.now() + 2).toString(),
+            text: `💡 ${currentLanguage === 'hi' ? 'सुझाव' : 'Suggestions'}: ${aiResponse.suggestions?.join(' • ')}`,
+            isUser: false,
+            timestamp: new Date(),
+          };
+          setMessages(prev => [...prev, suggestionMessage]);
+        }, 500);
+      }
+    }).catch((error) => {
+      console.error('AI Response Error:', error);
+      const errorMessage: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        text: currentLanguage === 'hi' 
+          ? 'क्षमा करें, मुझे कुछ तकनीकी समस्या हो रही है। कृपया दोबारा कोशिश करें।'
+          : 'Sorry, I\'m experiencing some technical difficulties. Please try again.',
+        isUser: false,
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    });
   };
 
   const quickQuestions = currentLanguage === 'hi' ? [
@@ -218,7 +233,7 @@ export default function ChatbotScreen() {
           </Animated.View>
         ))}
         
-        {isTyping && (
+        {isProcessing && (
           <Animated.View entering={SlideInLeft} style={styles.aiMessageWrapper}>
             <Card style={[styles.messageCard, { backgroundColor: colors.card }]}>
               <View style={styles.typingIndicator}>
@@ -264,7 +279,7 @@ export default function ChatbotScreen() {
               }
             ]}
             onPress={sendMessage}
-            disabled={!inputText.trim() || isTyping}
+            disabled={!inputText.trim() || isProcessing}
           >
             <Send size={20} color={inputText.trim() ? colors.background : colors.textSecondary} />
           </TouchableOpacity>

@@ -5,6 +5,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useMLModel } from '@/contexts/MLModelContext';
 import { useNotifications } from '@/contexts/NotificationContext';
+import { useSoundDetection } from '@/contexts/SoundDetectionContext';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Slider } from '@/components/ui/Slider';
@@ -17,6 +18,7 @@ export default function SettingsScreen() {
   const { t, currentLanguage, setLanguage, availableLanguages } = useLanguage();
   const { modelSettings, updateModelSettings, resetModel } = useMLModel();
   const { addNotification } = useNotifications();
+  const { setIsRecording } = useSoundDetection();
   const [settings, setSettings] = useState<AppSettings>({
     darkMode: isDark,
     notifications: true,
@@ -52,16 +54,41 @@ export default function SettingsScreen() {
     try {
       await AsyncStorage.setItem('app_settings', JSON.stringify(newSettings));
       
+      // Real-time feature implementation
+      if (key === 'autoRecord' && value === true) {
+        // Auto-start recording when enabled
+        setTimeout(() => {
+          setIsRecording(true);
+          addNotification({
+            title: t('autoRecording'),
+            message: currentLanguage === 'hi' ? 'स्वचालित रिकॉर्डिंग शुरू हो गई' : 'Auto recording started',
+            type: 'success',
+          });
+        }, 1000);
+      }
+      
+      if (key === 'notifications') {
+        addNotification({
+          title: currentLanguage === 'hi' ? 'सूचना सेटिंग्स' : 'Notification Settings',
+          message: value 
+            ? (currentLanguage === 'hi' ? 'पुश सूचनाएं सक्षम की गईं' : 'Push notifications enabled')
+            : (currentLanguage === 'hi' ? 'पुश सूचनाएं अक्षम की गईं' : 'Push notifications disabled'),
+          type: 'info',
+        });
+      }
+      
       addNotification({
-        title: 'Settings Updated',
-        message: `${key} has been updated successfully`,
+        title: currentLanguage === 'hi' ? 'सेटिंग्स अपडेट हुईं' : 'Settings Updated',
+        message: currentLanguage === 'hi' 
+          ? `${key} सफलतापूर्वक अपडेट हो गया` 
+          : `${key} has been updated successfully`,
         type: 'success',
       });
     } catch (error) {
       console.log('Error saving settings:', error);
       addNotification({
-        title: 'Settings Error',
-        message: 'Failed to save settings',
+        title: currentLanguage === 'hi' ? 'सेटिंग्स त्रुटि' : 'Settings Error',
+        message: currentLanguage === 'hi' ? 'सेटिंग्स सेव करने में विफल' : 'Failed to save settings',
         type: 'error',
       });
     }
@@ -69,8 +96,10 @@ export default function SettingsScreen() {
 
   const resetSettings = () => {
     Alert.alert(
-      'Reset Settings',
-      'Are you sure you want to reset all settings to default?',
+      currentLanguage === 'hi' ? 'सेटिंग्स रीसेट करें' : 'Reset Settings',
+      currentLanguage === 'hi' 
+        ? 'क्या आप वाकई सभी सेटिंग्स को डिफ़ॉल्ट पर रीसेट करना चाहते हैं?'
+        : 'Are you sure you want to reset all settings to default?',
       [
         { text: t('cancel'), style: 'cancel' },
         { 
@@ -86,9 +115,16 @@ export default function SettingsScreen() {
             setSettings(defaultSettings);
             await AsyncStorage.setItem('app_settings', JSON.stringify(defaultSettings));
             
+            // Reset theme to light mode
+            if (isDark) {
+              toggleTheme();
+            }
+            
             addNotification({
-              title: 'Settings Reset',
-              message: 'All settings have been reset to default values',
+              title: currentLanguage === 'hi' ? 'सेटिंग्स रीसेट हुईं' : 'Settings Reset',
+              message: currentLanguage === 'hi' 
+                ? 'सभी सेटिंग्स डिफ़ॉल्ट मानों पर रीसेट हो गईं'
+                : 'All settings have been reset to default values',
               type: 'info',
             });
           }
@@ -102,9 +138,48 @@ export default function SettingsScreen() {
     setShowLanguageSelector(false);
     
     addNotification({
-      title: 'Language Changed',
-      message: `Language updated to ${availableLanguages.find(l => l.code === languageCode)?.nativeName}`,
+      title: languageCode === 'hi' ? 'भाषा बदली गई' : 'Language Changed',
+      message: languageCode === 'hi' 
+        ? `भाषा ${availableLanguages.find(l => l.code === languageCode)?.nativeName} में अपडेट हो गई`
+        : `Language updated to ${availableLanguages.find(l => l.code === languageCode)?.nativeName}`,
       type: 'success',
+    });
+  };
+
+  const handleMLModelReset = () => {
+    Alert.alert(
+      currentLanguage === 'hi' ? 'ML मॉडल रीसेट करें' : 'Reset ML Model',
+      currentLanguage === 'hi' 
+        ? 'क्या आप वाकई सभी ML मॉडल सेटिंग्स को डिफ़ॉल्ट पर रीसेट करना चाहते हैं?'
+        : 'Are you sure you want to reset all ML model settings to default?',
+      [
+        { text: t('cancel'), style: 'cancel' },
+        { 
+          text: t('reset'), 
+          style: 'destructive',
+          onPress: () => {
+            resetModel();
+            addNotification({
+              title: currentLanguage === 'hi' ? 'ML मॉडल रीसेट हुआ' : 'ML Model Reset',
+              message: currentLanguage === 'hi' 
+                ? 'ML मॉडल सेटिंग्स डिफ़ॉल्ट पर रीसेट हो गईं'
+                : 'ML model settings have been reset to defaults',
+              type: 'info',
+            });
+          }
+        }
+      ]
+    );
+  };
+
+  const handleSensitivityChange = (value: number) => {
+    updateModelSettings({ sensitivity: value });
+    addNotification({
+      title: currentLanguage === 'hi' ? 'संवेदनशीलता अपडेट हुई' : 'Sensitivity Updated',
+      message: currentLanguage === 'hi' 
+        ? `संवेदनशीलता ${Math.round(value * 100)}% पर सेट की गई`
+        : `Sensitivity set to ${Math.round(value * 100)}%`,
+      type: 'info',
     });
   };
 
@@ -288,7 +363,16 @@ export default function SettingsScreen() {
               <View style={styles.sliderContainer}>
                 <Slider
                   value={modelSettings.confidenceThreshold}
-                  onValueChange={(value) => updateModelSettings({ confidenceThreshold: value })}
+                  onValueChange={(value) => {
+                    updateModelSettings({ confidenceThreshold: value });
+                    addNotification({
+                      title: currentLanguage === 'hi' ? 'विश्वास सीमा अपडेट हुई' : 'Confidence Threshold Updated',
+                      message: currentLanguage === 'hi' 
+                        ? `विश्वास सीमा ${Math.round(value * 100)}% पर सेट की गई`
+                        : `Confidence threshold set to ${Math.round(value * 100)}%`,
+                      type: 'info',
+                    });
+                  }}
                   minimumValue={0.3}
                   maximumValue={0.95}
                   step={0.05}
@@ -305,7 +389,16 @@ export default function SettingsScreen() {
               title={t('preprocessing')}
               subtitle={t('enablePreprocessing')}
               value={modelSettings.enablePreprocessing}
-              onValueChange={(value) => updateModelSettings({ enablePreprocessing: value })}
+              onValueChange={(value) => {
+                updateModelSettings({ enablePreprocessing: value });
+                addNotification({
+                  title: currentLanguage === 'hi' ? 'प्रीप्रोसेसिंग अपडेट हुई' : 'Preprocessing Updated',
+                  message: value 
+                    ? (currentLanguage === 'hi' ? 'ऑडियो प्रीप्रोसेसिंग सक्षम की गई' : 'Audio preprocessing enabled')
+                    : (currentLanguage === 'hi' ? 'ऑडियो प्रीप्रोसेसिंग अक्षम की गई' : 'Audio preprocessing disabled'),
+                  type: 'success',
+                });
+              }}
             />
             
             <SettingRow
@@ -313,9 +406,18 @@ export default function SettingsScreen() {
               title={t('postprocessing')}
               subtitle={t('enablePostprocessing')}
               value={modelSettings.enablePostprocessing}
-              onValueChange={(value) => updateModelSettings({ enablePostprocessing: value })}
+              onValueChange={(value) => {
+                updateModelSettings({ enablePostprocessing: value });
+                addNotification({
+                  title: currentLanguage === 'hi' ? 'पोस्टप्रोसेसिंग अपडेट हुई' : 'Postprocessing Updated',
+                  message: value 
+                    ? (currentLanguage === 'hi' ? 'परिणाम पोस्टप्रोसेसिंग सक्षम की गई' : 'Result postprocessing enabled')
+                    : (currentLanguage === 'hi' ? 'परिणाम पोस्टप्रोसेसिंग अक्षम की गई' : 'Result postprocessing disabled'),
+                  type: 'success',
+                });
+              }}
             />
-            
+                onValueChange={handleSensitivityChange}
             <TouchableOpacity
               style={styles.advancedToggle}
               onPress={() => setShowAdvanced(!showAdvanced)}
@@ -343,7 +445,17 @@ export default function SettingsScreen() {
                   <View style={styles.sliderContainer}>
                     <Slider
                       value={modelSettings.batchSize}
-                      onValueChange={(value) => updateModelSettings({ batchSize: Math.round(value) })}
+                      onValueChange={(value) => {
+                        const newBatchSize = Math.round(value);
+                        updateModelSettings({ batchSize: newBatchSize });
+                        addNotification({
+                          title: currentLanguage === 'hi' ? 'बैच साइज़ अपडेट हुआ' : 'Batch Size Updated',
+                          message: currentLanguage === 'hi' 
+                            ? `बैच साइज़ ${newBatchSize} पर सेट किया गया`
+                            : `Batch size set to ${newBatchSize}`,
+                          type: 'info',
+                        });
+                      }}
                       minimumValue={8}
                       maximumValue={128}
                       step={8}
@@ -370,7 +482,17 @@ export default function SettingsScreen() {
                   <View style={styles.sliderContainer}>
                     <Slider
                       value={modelSettings.maxDuration}
-                      onValueChange={(value) => updateModelSettings({ maxDuration: Math.round(value) })}
+                      onValueChange={(value) => {
+                        const newDuration = Math.round(value);
+                        updateModelSettings({ maxDuration: newDuration });
+                        addNotification({
+                          title: currentLanguage === 'hi' ? 'अधिकतम अवधि अपडेट हुई' : 'Max Duration Updated',
+                          message: currentLanguage === 'hi' 
+                            ? `अधिकतम अवधि ${newDuration} सेकंड पर सेट की गई`
+                            : `Max duration set to ${newDuration} seconds`,
+                          type: 'info',
+                        });
+                      }}
                       minimumValue={10}
                       maximumValue={120}
                       step={5}
@@ -397,7 +519,17 @@ export default function SettingsScreen() {
                   <View style={styles.sliderContainer}>
                     <Slider
                       value={modelSettings.sampleRate}
-                      onValueChange={(value) => updateModelSettings({ sampleRate: Math.round(value) })}
+                      onValueChange={(value) => {
+                        const newSampleRate = Math.round(value);
+                        updateModelSettings({ sampleRate: newSampleRate });
+                        addNotification({
+                          title: currentLanguage === 'hi' ? 'सैंपल रेट अपडेट हुआ' : 'Sample Rate Updated',
+                          message: currentLanguage === 'hi' 
+                            ? `सैंपल रेट ${newSampleRate}Hz पर सेट किया गया`
+                            : `Sample rate set to ${newSampleRate}Hz`,
+                          type: 'info',
+                        });
+                      }}
                       minimumValue={16000}
                       maximumValue={48000}
                       step={4000}
@@ -475,30 +607,19 @@ export default function SettingsScreen() {
               title={t('getHelp')}
               onPress={() => {
                 Alert.alert(
-                  'Help & Support',
-                  'Visit our documentation or contact support for assistance with the app.'
-                );
-              }}
-              variant="ghost"
-              icon={<HelpCircle size={20} color={colors.primary} />}
-            />
-            
-            <Button
-              title="Reset ML Model"
-              onPress={() => {
-                Alert.alert(
-                  'Reset ML Model',
-                  'This will reset all model settings to default values.',
+                  currentLanguage === 'hi' ? 'सहायता और समर्थन' : 'Help & Support',
+                  currentLanguage === 'hi' 
+                    ? 'ऐप के साथ सहायता के लिए हमारे दस्तावेज़ देखें या समर्थन से संपर्क करें।'
+                    : 'Visit our documentation or contact support for assistance with the app.',
                   [
-                    { text: t('cancel'), style: 'cancel' },
+                    { text: t('close'), style: 'cancel' },
                     { 
-                      text: t('reset'), 
-                      style: 'destructive',
+                      text: currentLanguage === 'hi' ? 'AI चैट खोलें' : 'Open AI Chat',
                       onPress: () => {
-                        resetModel();
+                        // Navigate to chatbot
                         addNotification({
-                          title: 'Model Reset',
-                          message: 'ML model settings have been reset to defaults',
+                          title: currentLanguage === 'hi' ? 'AI सहायक' : 'AI Assistant',
+                          message: currentLanguage === 'hi' ? 'AI चैट में जाएं और अपने प्रश्न पूछें' : 'Go to AI Chat and ask your questions',
                           type: 'info',
                         });
                       }
@@ -506,6 +627,13 @@ export default function SettingsScreen() {
                   ]
                 );
               }}
+              variant="ghost"
+              icon={<HelpCircle size={20} color={colors.primary} />}
+            />
+            
+            <Button
+              title={t('resetMLModel')}
+              onPress={handleMLModelReset}
               variant="outline"
               icon={<RotateCcw size={20} color={colors.error} />}
             />

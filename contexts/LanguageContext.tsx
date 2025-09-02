@@ -110,12 +110,18 @@ const translations = {
     platform: 'Platform',
     resetSettings: 'Reset Settings',
     getHelp: 'Get Help',
+    resetMLModel: 'Reset ML Model',
+    resetMLModelDesc: 'Reset all ML model settings to defaults',
     
     // AI Chat
     aiAssistant: 'AI Assistant',
     askAboutSound: 'Ask me about sound classification',
     aiTyping: 'AI is typing...',
     askAnything: 'Ask me anything...',
+    voiceAssistant: 'Voice Assistant',
+    tapToSpeak: 'Tap to speak',
+    listening: 'Listening...',
+    voiceProcessing: 'Processing voice...',
     
     // Common
     all: 'All',

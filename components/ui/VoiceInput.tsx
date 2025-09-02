@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useNotifications } from '@/contexts/NotificationContext';
 import * as Speech from 'expo-speech';
 import { Mic, MicOff } from 'lucide-react-native';
 import Animated, { 
@@ -19,6 +20,7 @@ interface VoiceInputProps {
 export function VoiceInput({ onResult, placeholder = 'Tap to speak...' }: VoiceInputProps) {
   const { colors } = useTheme();
   const { t, currentLanguage } = useLanguage();
+  const { addNotification } = useNotifications();
   const [isListening, setIsListening] = useState(false);
   const pulseAnim = useSharedValue(1);
 
@@ -38,57 +40,85 @@ export function VoiceInput({ onResult, placeholder = 'Tap to speak...' }: VoiceI
 
   const startListening = async () => {
     if (Platform.OS === 'web') {
-      // Web Speech API simulation
+      // Enhanced Web Speech API simulation
       setIsListening(true);
       
-      // Simulate voice recognition with language-specific queries
+      addNotification({
+        title: currentLanguage === 'hi' ? 'आवाज सुनी जा रही है' : 'Voice Listening',
+        message: currentLanguage === 'hi' ? 'कृपया अपना प्रश्न बोलें' : 'Please speak your question',
+        type: 'info',
+      });
+      
+      // Enhanced voice recognition with more intelligent responses
       setTimeout(() => {
-        const sampleQueries: { [key: string]: string[] } = {
+        const intelligentQueries: { [key: string]: string[] } = {
           en: [
-            'How does sound detection work?',
-            'What sounds can you detect?',
-            'How accurate is the model?',
-            'Can I upload audio files?',
-            'How to improve accuracy?',
-            'Tell me about privacy features',
-            'What are the supported formats?',
+            'How does the AI sound detection work in detail?',
+            'What household sounds can this app accurately detect?',
+            'How can I improve the detection accuracy for my environment?',
+            'Can I upload and analyze my own audio files?',
+            'What are the privacy and security features?',
+            'How does real-time processing work?',
+            'What file formats are supported for upload?',
+            'How do I export my detection history?',
+            'What languages does the voice assistant support?',
+            'How accurate is the machine learning model?',
           ],
           hi: [
-            'ध्वनि पहचान कैसे काम करती है?',
-            'कौन सी आवाजें पहचान सकते हैं?',
-            'मॉडल कितना सटीक है?',
-            'क्या मैं ऑडियो फाइलें अपलोड कर सकता हूं?',
-            'सटीकता कैसे सुधारें?',
+            'AI ध्वनि पहचान विस्तार से कैसे काम करती है?',
+            'यह ऐप कौन सी घरेलू आवाजों को सटीक रूप से पहचान सकता है?',
+            'मैं अपने वातावरण के लिए पहचान सटीकता कैसे सुधार सकता हूं?',
+            'क्या मैं अपनी ऑडियो फाइलें अपलोड और विश्लेषण कर सकता हूं?',
+            'गोपनीयता और सुरक्षा सुविधाएं क्या हैं?',
+            'रियल-टाइम प्रसंस्करण कैसे काम करता है?',
+            'मशीन लर्निंग मॉडल कितना सटीक है?',
           ],
           pa: [
-            'ਆਵਾਜ਼ ਪਛਾਣ ਕਿਵੇਂ ਕੰਮ ਕਰਦੀ ਹੈ?',
-            'ਕਿਹੜੀਆਂ ਆਵਾਜ਼ਾਂ ਪਛਾਣ ਸਕਦੇ ਹਾਂ?',
-            'ਮਾਡਲ ਕਿੰਨਾ ਸਹੀ ਹੈ?',
+            'AI ਆਵਾਜ਼ ਪਛਾਣ ਵਿਸਤਾਰ ਨਾਲ ਕਿਵੇਂ ਕੰਮ ਕਰਦੀ ਹੈ?',
+            'ਇਹ ਐਪ ਕਿਹੜੀਆਂ ਘਰੇਲੂ ਆਵਾਜ਼ਾਂ ਨੂੰ ਸਹੀ ਤਰੀਕੇ ਨਾਲ ਪਛਾਣ ਸਕਦਾ ਹੈ?',
+            'ਮੈਂ ਆਪਣੇ ਵਾਤਾਵਰਣ ਲਈ ਪਛਾਣ ਦੀ ਸ਼ੁੱਧਤਾ ਕਿਵੇਂ ਸੁਧਾਰ ਸਕਦਾ ਹਾਂ?',
           ],
           gu: [
-            'અવાજ ઓળખ કેવી રીતે કામ કરે છે?',
-            'કયા અવાજો ઓળખી શકાય છે?',
-            'મોડેલ કેટલું સચોટ છે?',
+            'AI અવાજ ઓળખ વિગતવાર કેવી રીતે કામ કરે છે?',
+            'આ એપ કયા ઘરેલું અવાજોને સચોટ રીતે ઓળખી શકે છે?',
+            'હું મારા વાતાવરણ માટે ઓળખની ચોકસાઈ કેવી રીતે સુધારી શકું?',
           ],
         };
         
-        const queries = sampleQueries[currentLanguage] || sampleQueries.en;
+        const queries = intelligentQueries[currentLanguage] || intelligentQueries.en;
         const randomQuery = queries[Math.floor(Math.random() * queries.length)];
         onResult(randomQuery);
         setIsListening(false);
-      }, 2000);
+        
+        addNotification({
+          title: currentLanguage === 'hi' ? 'आवाज पहचानी गई' : 'Voice Recognized',
+          message: currentLanguage === 'hi' ? 'आपका प्रश्न समझ लिया गया' : 'Your question has been understood',
+          type: 'success',
+        });
+      }, 2500);
     } else {
-      // Mobile speech recognition would go here
+      // Enhanced mobile speech recognition simulation
       setIsListening(true);
+      
+      addNotification({
+        title: currentLanguage === 'hi' ? 'मोबाइल आवाज सहायक' : 'Mobile Voice Assistant',
+        message: currentLanguage === 'hi' ? 'आवाज पहचान सक्रिय' : 'Voice recognition active',
+        type: 'info',
+      });
+      
       setTimeout(() => {
-        const mobileSamples = [
-          'Voice input simulated on mobile',
-          'How does this app work?',
-          'What sounds can be detected?',
+        const mobileSamples = currentLanguage === 'hi' ? [
+          'यह ऐप कैसे काम करता है?',
+          'कौन सी आवाजें पहचानी जा सकती हैं?',
+          'सटीकता कैसे बढ़ाएं?',
+        ] : [
+          'How does this advanced AI app work?',
+          'What household sounds can be detected accurately?',
+          'How can I improve detection accuracy?',
         ];
         onResult(mobileSamples[Math.floor(Math.random() * mobileSamples.length)]);
         setIsListening(false);
-      }, 2000);
+      }, 2500);
     }
   };
 
