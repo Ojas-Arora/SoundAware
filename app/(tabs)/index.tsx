@@ -16,7 +16,7 @@ const { width } = Dimensions.get('window');
 
 export default function HomeScreen() {
   const { colors } = useTheme();
-  const { t } = useLanguage();
+  const { t, currentLanguage } = useLanguage();
   const router = useRouter();
   const { detections, isRecording } = useSoundDetection();
   const { addNotification, unreadCount } = useNotifications();
