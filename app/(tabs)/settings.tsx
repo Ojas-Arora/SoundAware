@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Switch, Alert, Platform, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Switch, Alert, Platform, TouchableOpacity } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -217,7 +217,7 @@ export default function SettingsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <Animated.ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <Animated.View entering={FadeInDown.delay(100)} style={styles.header}>
           <Text style={[styles.title, { color: colors.text }]}>{t('settingsTitle')}</Text>
@@ -639,7 +639,7 @@ export default function SettingsScreen() {
             />
           </Card>
         </Animated.View>
-      </ScrollView>
+      </Animated.ScrollView>
     </View>
   );
 }
