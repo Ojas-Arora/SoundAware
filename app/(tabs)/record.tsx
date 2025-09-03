@@ -24,7 +24,7 @@ import * as Haptics from 'expo-haptics';
 
 export default function RecordScreen() {
   const { colors } = useTheme();
-  const { t } = useLanguage();
+  const { t, currentLanguage } = useLanguage();
   const { addDetection, isRecording, setIsRecording } = useSoundDetection();
   const { addNotification } = useNotifications();
   const { modelSettings, processAudio } = useMLModel();

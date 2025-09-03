@@ -341,7 +341,6 @@ export default function SettingsScreen() {
               </View>
             </View>
           </Card>
-        </Animated.View>
 
         {/* ML Model Settings */}
         <Animated.View entering={FadeInDown.delay(350)}>
