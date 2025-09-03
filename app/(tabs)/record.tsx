@@ -25,7 +25,7 @@ import * as Haptics from 'expo-haptics';
 export default function RecordScreen() {
   const { colors } = useTheme();
   const { t, currentLanguage } = useLanguage();
-  const { addDetection, isRecording, setIsRecording } = useSoundDetection();
+  const { addDetection, isRecording, setIsRecording, autoRecording, stopAutoRecording } = useSoundDetection();
   const { addNotification } = useNotifications();
   const { modelSettings, processAudio } = useMLModel();
   
@@ -139,6 +139,16 @@ export default function RecordScreen() {
       }
 
       setRecording(null);
+      
+      // If auto recording was enabled but user manually stopped, disable auto recording
+      if (autoRecording) {
+        stopAutoRecording();
+        addNotification({
+          title: currentLanguage === 'hi' ? 'स्वचालित रिकॉर्डिंग बंद' : 'Auto Recording Stopped',
+          message: currentLanguage === 'hi' ? 'मैन्युअल रूप से रोकने के कारण स्वचालित रिकॉर्डिंग बंद हो गई' : 'Auto recording disabled due to manual stop',
+          type: 'info',
+        });
+      }
     } catch (err) {
       console.error('Failed to stop recording', err);
       setIsProcessing(false);

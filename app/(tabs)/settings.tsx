@@ -17,13 +17,13 @@ export default function SettingsScreen() {
   const { isDark, toggleTheme, colors } = useTheme();
   const { t, currentLanguage, setLanguage, availableLanguages } = useLanguage();
   const { modelSettings, updateModelSettings, resetModel } = useMLModel();
-  const { addNotification } = useNotifications();
-  const { setIsRecording } = useSoundDetection();
+  const { addNotification, notificationsEnabled, setNotificationsEnabled } = useNotifications();
+  const { setIsRecording, autoRecording, setAutoRecording, stopAutoRecording } = useSoundDetection();
   const [settings, setSettings] = useState<AppSettings>({
     darkMode: isDark,
-    notifications: true,
+    notifications: notificationsEnabled,
     sensitivity: 0.7,
-    autoRecord: false,
+    autoRecord: autoRecording,
   });
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showLanguageSelector, setShowLanguageSelector] = useState(false);
@@ -36,6 +36,13 @@ export default function SettingsScreen() {
     setSettings(prev => ({ ...prev, darkMode: isDark }));
   }, [isDark]);
 
+  useEffect(() => {
+    setSettings(prev => ({ 
+      ...prev, 
+      notifications: notificationsEnabled,
+      autoRecord: autoRecording 
+    }));
+  }, [notificationsEnabled, autoRecording]);
   const loadSettings = async () => {
     try {
       const saved = await AsyncStorage.getItem('app_settings');
@@ -56,18 +63,25 @@ export default function SettingsScreen() {
       
       // Real-time feature implementation
       if (key === 'autoRecord' && value === true) {
-        // Auto-start recording when enabled
-        setTimeout(() => {
-          setIsRecording(true);
+        setAutoRecording(value as boolean);
+        if (value) {
           addNotification({
             title: t('autoRecording'),
-            message: currentLanguage === 'hi' ? 'स्वचालित रिकॉर्डिंग शुरू हो गई' : 'Auto recording started',
+            message: currentLanguage === 'hi' ? 'स्वचालित रिकॉर्डिंग सक्षम की गई' : 'Auto recording enabled',
             type: 'success',
           });
-        }, 1000);
+        } else {
+          stopAutoRecording();
+          addNotification({
+            title: t('autoRecording'),
+            message: currentLanguage === 'hi' ? 'स्वचालित रिकॉर्डिंग बंद की गई' : 'Auto recording disabled',
+            type: 'info',
+          });
+        }
       }
       
       if (key === 'notifications') {
+        setNotificationsEnabled(value as boolean);
         addNotification({
           title: currentLanguage === 'hi' ? 'सूचना सेटिंग्स' : 'Notification Settings',
           message: value 
@@ -77,13 +91,15 @@ export default function SettingsScreen() {
         });
       }
       
-      addNotification({
-        title: currentLanguage === 'hi' ? 'सेटिंग्स अपडेट हुईं' : 'Settings Updated',
-        message: currentLanguage === 'hi' 
-          ? `${key} सफलतापूर्वक अपडेट हो गया` 
-          : `${key} has been updated successfully`,
-        type: 'success',
-      });
+      if (key !== 'autoRecord' && key !== 'notifications') {
+        addNotification({
+          title: currentLanguage === 'hi' ? 'सेटिंग्स अपडेट हुईं' : 'Settings Updated',
+          message: currentLanguage === 'hi' 
+            ? `${key} सफलतापूर्वक अपडेट हो गया` 
+            : `${key} has been updated successfully`,
+          type: 'success',
+        });
+      }
     } catch (error) {
       console.log('Error saving settings:', error);
       addNotification({
@@ -113,6 +129,8 @@ export default function SettingsScreen() {
               autoRecord: false,
             };
             setSettings(defaultSettings);
+            setNotificationsEnabled(true);
+            stopAutoRecording();
             await AsyncStorage.setItem('app_settings', JSON.stringify(defaultSettings));
             
             // Reset theme to light mode

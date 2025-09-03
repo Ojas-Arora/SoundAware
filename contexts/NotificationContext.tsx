@@ -16,15 +16,19 @@ interface NotificationContextType {
   markAsRead: (id: string) => void;
   clearAll: () => void;
   unreadCount: number;
+  notificationsEnabled: boolean;
+  setNotificationsEnabled: (enabled: boolean) => void;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notificationsEnabled, setNotificationsEnabledState] = useState(true);
 
   useEffect(() => {
     loadNotifications();
+    loadNotificationSettings();
   }, []);
 
   const loadNotifications = async () => {
@@ -39,7 +43,32 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     }
   };
 
+  const loadNotificationSettings = async () => {
+    try {
+      const saved = await AsyncStorage.getItem('notifications_enabled');
+      if (saved !== null) {
+        setNotificationsEnabledState(JSON.parse(saved));
+      }
+    } catch (error) {
+      console.log('Error loading notification settings:', error);
+    }
+  };
+
+  const setNotificationsEnabled = async (enabled: boolean) => {
+    setNotificationsEnabledState(enabled);
+    try {
+      await AsyncStorage.setItem('notifications_enabled', JSON.stringify(enabled));
+    } catch (error) {
+      console.log('Error saving notification settings:', error);
+    }
+  };
+
   const addNotification = async (notification: Omit<Notification, 'id' | 'timestamp' | 'read'>) => {
+    // Don't add notification if notifications are disabled
+    if (!notificationsEnabled) {
+      return;
+    }
+
     const newNotification: Notification = {
       ...notification,
       id: Date.now().toString(),
@@ -86,6 +115,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       markAsRead,
       clearAll,
       unreadCount,
+      notificationsEnabled,
+      setNotificationsEnabled,
     }}>
       {children}
     </NotificationContext.Provider>

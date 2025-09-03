@@ -44,13 +44,24 @@ export default function NotificationsScreen() {
   const handleClearAll = () => {
     Alert.alert(
       t('clearAll'),
-      'Are you sure you want to clear all notifications?',
+      currentLanguage === 'hi' 
+        ? 'क्या आप वाकई सभी सूचनाओं को साफ़ करना चाहते हैं?'
+        : 'Are you sure you want to clear all notifications?',
       [
         { text: t('cancel'), style: 'cancel' },
         { 
           text: t('confirm'), 
           style: 'destructive',
-          onPress: clearAll
+          onPress: () => {
+            clearAll();
+            addNotification({
+              title: currentLanguage === 'hi' ? 'सूचनाएं साफ़ हो गईं' : 'Notifications Cleared',
+              message: currentLanguage === 'hi' 
+                ? 'सभी सूचनाएं हटा दी गई हैं'
+                : 'All notifications have been cleared',
+              type: 'info',
+            });
+          }
         }
       ]
     );

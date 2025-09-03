@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SoundDetection } from '@/types';
+import { AppState } from 'react-native';
 
 interface SoundDetectionContextType {
   detections: SoundDetection[];
@@ -8,6 +9,9 @@ interface SoundDetectionContextType {
   clearHistory: () => void;
   isRecording: boolean;
   setIsRecording: (recording: boolean) => void;
+  autoRecording: boolean;
+  setAutoRecording: (auto: boolean) => void;
+  stopAutoRecording: () => void;
 }
 
 const SoundDetectionContext = createContext<SoundDetectionContextType | undefined>(undefined);
@@ -15,10 +19,25 @@ const SoundDetectionContext = createContext<SoundDetectionContextType | undefine
 export function SoundDetectionProvider({ children }: { children: React.ReactNode }) {
   const [detections, setDetections] = useState<SoundDetection[]>([]);
   const [isRecording, setIsRecording] = useState(false);
+  const [autoRecording, setAutoRecording] = useState(false);
 
   useEffect(() => {
     loadDetections();
+    loadAutoRecordingSetting();
   }, []);
+
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: string) => {
+      if (nextAppState === 'background' && autoRecording) {
+        setIsRecording(false);
+      } else if (nextAppState === 'active' && autoRecording) {
+        setTimeout(() => setIsRecording(true), 1000);
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription?.remove();
+  }, [autoRecording]);
 
   const loadDetections = async () => {
     try {
@@ -30,6 +49,41 @@ export function SoundDetectionProvider({ children }: { children: React.ReactNode
     } catch (error) {
       console.log('Error loading detections:', error);
     }
+  };
+
+  const loadAutoRecordingSetting = async () => {
+    try {
+      const saved = await AsyncStorage.getItem('auto_recording');
+      if (saved) {
+        const autoRecordingEnabled = JSON.parse(saved);
+        setAutoRecording(autoRecordingEnabled);
+        if (autoRecordingEnabled) {
+          setTimeout(() => setIsRecording(true), 2000);
+        }
+      }
+    } catch (error) {
+      console.log('Error loading auto recording setting:', error);
+    }
+  };
+
+  const updateAutoRecording = async (enabled: boolean) => {
+    setAutoRecording(enabled);
+    try {
+      await AsyncStorage.setItem('auto_recording', JSON.stringify(enabled));
+      if (!enabled) {
+        setIsRecording(false);
+      } else {
+        setTimeout(() => setIsRecording(true), 1000);
+      }
+    } catch (error) {
+      console.log('Error saving auto recording setting:', error);
+    }
+  };
+
+  const stopAutoRecording = () => {
+    setAutoRecording(false);
+    setIsRecording(false);
+    AsyncStorage.setItem('auto_recording', JSON.stringify(false));
   };
 
   const addDetection = async (detection: Omit<SoundDetection, 'id' | 'timestamp'>) => {
@@ -65,6 +119,9 @@ export function SoundDetectionProvider({ children }: { children: React.ReactNode
       clearHistory,
       isRecording,
       setIsRecording,
+      autoRecording,
+      setAutoRecording: updateAutoRecording,
+      stopAutoRecording,
     }}>
       {children}
     </SoundDetectionContext.Provider>
