@@ -14,7 +14,7 @@ import Animated, { FadeInDown, SlideInRight } from 'react-native-reanimated';
 
 export default function NotificationsScreen() {
   const { colors } = useTheme();
-  const { t } = useLanguage();
+  const { t, currentLanguage } = useLanguage();
   const { notifications, markAsRead, clearAll, unreadCount } = useNotifications();
   const { detections } = useSoundDetection();
   const [filter, setFilter] = useState<string>('all');
