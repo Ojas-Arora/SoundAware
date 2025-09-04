@@ -39,6 +39,15 @@ export function SoundDetectionProvider({ children }: { children: React.ReactNode
     return () => subscription?.remove();
   }, [autoRecording]);
 
+  // Watch for autoRecording changes and update recording state
+  useEffect(() => {
+    if (autoRecording) {
+      setTimeout(() => setIsRecording(true), 1000);
+    } else {
+      setIsRecording(false);
+    }
+  }, [autoRecording]);
+
   const loadDetections = async () => {
     try {
       const savedDetections = await AsyncStorage.getItem('sound_detections');

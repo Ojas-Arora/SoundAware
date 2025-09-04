@@ -54,13 +54,6 @@ export default function NotificationsScreen() {
           style: 'destructive',
           onPress: () => {
             clearAll();
-            addNotification({
-              title: currentLanguage === 'hi' ? 'सूचनाएं साफ़ हो गईं' : 'Notifications Cleared',
-              message: currentLanguage === 'hi' 
-                ? 'सभी सूचनाएं हटा दी गई हैं'
-                : 'All notifications have been cleared',
-              type: 'info',
-            });
           }
         }
       ]

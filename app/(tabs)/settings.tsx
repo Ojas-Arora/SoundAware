@@ -63,21 +63,19 @@ export default function SettingsScreen() {
       
       // Real-time feature implementation
       if (key === 'autoRecord' && value === true) {
-        setAutoRecording(value as boolean);
-        if (value) {
-          addNotification({
-            title: t('autoRecording'),
-            message: currentLanguage === 'hi' ? 'स्वचालित रिकॉर्डिंग सक्षम की गई' : 'Auto recording enabled',
-            type: 'success',
-          });
-        } else {
-          stopAutoRecording();
-          addNotification({
-            title: t('autoRecording'),
-            message: currentLanguage === 'hi' ? 'स्वचालित रिकॉर्डिंग बंद की गई' : 'Auto recording disabled',
-            type: 'info',
-          });
-        }
+        setAutoRecording(true);
+        addNotification({
+          title: t('autoRecording'),
+          message: currentLanguage === 'hi' ? 'स्वचालित रिकॉर्डिंग सक्षम की गई' : 'Auto recording enabled',
+          type: 'success',
+        });
+      } else if (key === 'autoRecord' && value === false) {
+        setAutoRecording(false);
+        addNotification({
+          title: t('autoRecording'),
+          message: currentLanguage === 'hi' ? 'स्वचालित रिकॉर्डिंग बंद की गई' : 'Auto recording disabled',
+          type: 'info',
+        });
       }
       
       if (key === 'notifications') {
