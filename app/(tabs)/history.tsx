@@ -13,7 +13,7 @@ import Animated, { FadeInDown, SlideInRight } from 'react-native-reanimated';
 
 export default function HistoryScreen() {
   const { colors } = useTheme();
-  const { t } = useLanguage();
+  const { t, currentLanguage } = useLanguage();
   const { detections, clearHistory } = useSoundDetection();
   const { addNotification } = useNotifications();
   const [filter, setFilter] = useState<string>('all');
