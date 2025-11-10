@@ -180,8 +180,16 @@ export default function RecordScreen() {
         else if (ext === 'mp3') mime = 'audio/mpeg';
         else if (ext === 'flac') mime = 'audio/flac';
 
-        // For web, uri is a blob URL; for native it's a file:// URI — both are acceptable in FormData on Expo
-        form.append('file', { uri, name: filename, type: mime } as any);
+        // For web, uri is a blob URL and must be appended as a Blob/File.
+        // For native (Expo) append an object with { uri, name, type }.
+        if ((Platform as any).OS === 'web') {
+          // fetch the blob from the blob:// or data URL
+          const resp = await fetch(uri);
+          const blob = await resp.blob();
+          form.append('file', blob, filename);
+        } else {
+          form.append('file', { uri, name: filename, type: mime } as any);
+        }
 
         // derive an effective backend URL so Expo Go on device uses the dev machine IP
         let backendUrl = PRED_URL;
