@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { View, Text, StyleSheet, Alert, Platform, ScrollView } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import Constants from 'expo-constants';
 import { useSoundDetection } from '@/contexts/SoundDetectionContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { useMLModel } from '@/contexts/MLModelContext';
@@ -167,18 +168,44 @@ export default function RecordScreen() {
       const BACKEND_BASE = (global as any).BACKEND_URL || 'http://127.0.0.1:5000';
       const PRED_URL = `${BACKEND_BASE}/predict`;
 
-      if (Platform.OS === 'web') {
-        // fetch the local URI to get a Blob, then send as FormData
-        const resp = await fetch(uri);
-        const blob = await resp.blob();
-
+      // Try to upload to backend for inference on all platforms (web & native).
+      // For React Native / Expo, fetch with FormData and a file object ({ uri, name, type }) works.
+      try {
         const form = new FormData();
-        form.append('file', blob, uploadedFile || 'upload.wav');
+        // determine filename and mime-type
+        const filename = uploadedFile || `recording${Date.now()}.wav`;
+        const ext = filename.includes('.') ? filename.split('.').pop() : 'wav';
+        let mime = 'audio/wav';
+        if (ext === 'm4a' || ext === 'aac') mime = 'audio/mp4';
+        else if (ext === 'mp3') mime = 'audio/mpeg';
+        else if (ext === 'flac') mime = 'audio/flac';
 
-        const r = await fetch(PRED_URL, {
+        // For web, uri is a blob URL; for native it's a file:// URI — both are acceptable in FormData on Expo
+        form.append('file', { uri, name: filename, type: mime } as any);
+
+        // derive an effective backend URL so Expo Go on device uses the dev machine IP
+        let backendUrl = PRED_URL;
+        try {
+          // If PRED_URL is localhost/127.0.0.1, try to derive the LAN IP from Expo Constants
+          const usesLocal = !backendUrl || backendUrl.includes('localhost') || backendUrl.includes('127.0.0.1');
+          if (usesLocal) {
+            // Expo provides debuggerHost like '192.168.29.32:8081' when running via LAN
+            const dbg = (Constants && (Constants.manifest?.debuggerHost || (Constants.manifest2 && Constants.manifest2.debuggerHost))) || null;
+            if (dbg) {
+              const derivedIp = dbg.split(':')[0];
+              backendUrl = `http://${derivedIp}:5000/predict`;
+            } else if (typeof window !== 'undefined' && window.location && window.location.hostname) {
+              backendUrl = `http://${window.location.hostname}:5000/predict`;
+            }
+          }
+        } catch (e) {
+          console.warn('Could not derive backend URL from Expo Constants', e);
+        }
+
+        const r = await fetch(backendUrl, {
           method: 'POST',
           body: form,
-          // headers: { 'x-api-key': '...'} // add if you configure PRED_API_KEY on server
+          // Do not set content-type header; let fetch set the multipart boundary
         });
 
         if (!r.ok) {
@@ -189,8 +216,8 @@ export default function RecordScreen() {
         const json = await r.json();
 
         // json contains pred_label, pred_idx, scores
-        const label = json.pred_label || 'Unknown';
-        const confidence = json.scores && json.scores[json.pred_idx] ? json.scores[json.pred_idx] : null;
+        const label = json.pred_label || json.pred_label || 'Unknown';
+        const confidence = json.scores && typeof json.pred_idx === 'number' ? json.scores[json.pred_idx] : null;
 
         addDetection({
           soundType: label,
@@ -209,10 +236,17 @@ export default function RecordScreen() {
             : `Identified: ${label} with ${confidence ? Math.round(confidence * 100) : ''}% confidence`,
           type: (confidence ?? 0) > 0.8 ? 'success' : 'warning',
         });
+
+        if ((Platform as any).OS !== 'web') {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }
         return;
+      } catch (err) {
+        console.warn('Backend upload failed, falling back to local model:', err);
+        // fallback to local processing below
       }
 
-      // Fallback for native platforms: use the existing local model processing
+      // Fallback for native or when backend fails: use the existing local model processing
       const result = await processAudio(uri, modelSettings.sensitivity);
 
       addDetection({
