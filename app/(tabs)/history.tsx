@@ -1,0 +1,645 @@
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform } from 'react-native';
+import * as Sharing from 'expo-sharing';
+// Use legacy API to avoid SDK 54 writeAsStringAsync deprecation until we migrate to the new File/Directory API
+import * as FileSystem from 'expo-file-system/legacy';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { useSoundDetection } from '@/contexts/SoundDetectionContext';
+import { useNotifications } from '@/contexts/NotificationContext';
+import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Clock, Volume2, Trash2, Filter, Search, Download, Share, ChartBar as BarChart3 } from 'lucide-react-native';
+import Animated, { FadeInDown, SlideInRight } from 'react-native-reanimated';
+
+export default function HistoryScreen() {
+  const { colors } = useTheme();
+  const { t, currentLanguage, setLanguage, availableLanguages } = useLanguage();
+  const { detections, clearHistory } = useSoundDetection();
+  const { addNotification } = useNotifications();
+  const [filter, setFilter] = useState<string>('all');
+  const [showStats, setShowStats] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
+  const [showLanguageSelector, setShowLanguageSelector] = useState(false);
+
+  const filteredDetections = filter === 'all' 
+    ? detections 
+    : detections.filter(d => d.soundType.toLowerCase().includes(filter.toLowerCase()));
+
+  const groupedDetections = filteredDetections.reduce((groups: { [key: string]: typeof detections }, detection) => {
+    const ts = new Date((detection as any).timestamp);
+    const date = ts.toDateString();
+    if (!groups[date]) {
+      groups[date] = [];
+    }
+    groups[date].push(detection);
+    return groups;
+  }, {});
+
+  const getConfidenceColor = (confidence: number) => {
+    if (confidence >= 0.8) return colors.success;
+    if (confidence >= 0.6) return colors.warning;
+    return colors.error;
+  };
+
+  const soundTypes = [...new Set(detections.map(d => d.soundType))];
+
+  const exportHistory = async () => {
+    if (detections.length === 0) {
+      addNotification({
+        title: t('exportFailed'),
+        message: 'No detections to export',
+        type: 'warning',
+      });
+      return;
+    }
+
+    setIsExporting(true);
+    
+    try {
+      const csvHeader = 'Date,Time,Sound Type,Confidence (%),Duration (seconds)\n';
+      const csvRows = detections.map(d => {
+        const ts = new Date((d as any).timestamp);
+        return `"${ts.toLocaleDateString()}","${ts.toLocaleTimeString()}","${d.soundType}",${Math.round(d.confidence * 100)},${d.duration}`;
+      }).join('\n');
+      
+      const csvContent = csvHeader + csvRows;
+      const dateStr = new Date().toISOString().split('T')[0];
+      const fileName = `SoundAware_Detections_${dateStr}.csv`;
+      
+      if (Platform.OS === 'web') {
+        // Web download
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        
+        addNotification({
+          title: t('exportSuccess'),
+          message: `${t('csvExported')} (${detections.length} ${t('totalDetections')})`,
+          type: 'success',
+        });
+      } else {
+        // Mobile export
+        const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+        await FileSystem.writeAsStringAsync(fileUri, csvContent);
+        
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(fileUri, {
+            mimeType: 'text/csv',
+            dialogTitle: t('exportCsv'),
+          });
+        }
+        
+        addNotification({
+          title: t('exportSuccess'),
+          message: `${t('csvExported')} (${detections.length} ${t('totalDetections')})`,
+          type: 'success',
+        });
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      addNotification({
+        title: t('exportFailed'),
+        message: 'Unable to create CSV file. Please try again.',
+        type: 'error',
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const shareHistory = async () => {
+    if (detections.length === 0) {
+      addNotification({
+        title: t('shareFailed'),
+        message: 'No detections to share',
+        type: 'warning',
+      });
+      return;
+    }
+
+    setIsSharing(true);
+    
+    try {
+      const dateStr = new Date().toLocaleDateString();
+      const stats = getStats();
+      
+      const summary = `🔊 SoundAware Detection Summary - ${dateStr}
+
+📊 Statistics:
+• Total Detections: ${stats.totalDetections}
+• Average Confidence: ${Math.round(stats.avgConfidence * 100)}%
+• Most Common Sound: ${stats.mostCommon}
+
+📋 Recent Detections:
+${detections.slice(0, 5).map(d => {
+  const ts = new Date((d as any).timestamp);
+  return `• ${d.soundType} (${Math.round(d.confidence * 100)}%) - ${ts.toLocaleString()}`;
+}).join('\n')}
+
+Generated by SoundAware - AI-Powered Sound Detection App`;
+      
+      if (Platform.OS === 'web') {
+        // Web sharing using Web Share API or fallback
+        if (navigator.share) {
+          await navigator.share({
+            title: 'SoundAware Detection Summary',
+            text: summary,
+          });
+        } else {
+          // Fallback: copy to clipboard
+          await navigator.clipboard.writeText(summary);
+          addNotification({
+            title: t('shareSuccess'),
+            message: 'Summary copied to clipboard',
+            type: 'success',
+          });
+        }
+      } else {
+        // Mobile sharing
+        const fileName = `SoundAware_Summary_${new Date().toISOString().split('T')[0]}.txt`;
+        const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+        
+        await FileSystem.writeAsStringAsync(fileUri, summary);
+        
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(fileUri, {
+            mimeType: 'text/plain',
+            dialogTitle: t('share'),
+          });
+        }
+        
+        addNotification({
+          title: t('shareSuccess'),
+          message: t('summaryShared'),
+          type: 'success',
+        });
+      }
+    } catch (error) {
+      console.error('Share error:', error);
+      addNotification({
+        title: t('shareFailed'),
+        message: 'Unable to prepare summary for sharing. Please try again.',
+        type: 'error',
+      });
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
+  const getStats = () => {
+    const totalDetections = detections.length;
+    const avgConfidence = detections.length > 0 
+      ? detections.reduce((sum, d) => sum + d.confidence, 0) / detections.length 
+      : 0;
+    const mostCommon = soundTypes.length > 0 
+      ? soundTypes.reduce((a, b) => 
+          detections.filter(d => d.soundType === a).length > 
+          detections.filter(d => d.soundType === b).length ? a : b
+        )
+      : 'None';
+    
+    return { totalDetections, avgConfidence, mostCommon };
+  };
+
+  const stats = getStats();
+
+  const handleLanguageChange = async (languageCode: string) => {
+    try {
+      await setLanguage(languageCode);
+      setShowLanguageSelector(false);
+      
+      const languageName = availableLanguages.find((l: { code: string }) => l.code === languageCode)?.nativeName || languageCode;
+      
+      Alert.alert(
+        languageCode === 'hi' ? 'भाषा बदली गई' : 'Language Changed',
+        languageCode === 'hi' 
+          ? `भाषा ${languageName} में अपडेट हो गई`
+          : `Language updated to ${languageName}`,
+        [{ text: t('ok') }]
+      );
+    } catch (error) {
+      console.error('Error changing language:', error);
+      Alert.alert(
+        t('error'),
+        currentLanguage === 'hi' 
+          ? 'भाषा बदलने में त्रुटि हुई' 
+          : 'Error changing language',
+        [{ text: t('ok') }]
+      );
+    }
+  };
+
+  const handleClearHistory = () => {
+    Alert.alert(
+      t('clearHistory'),
+      currentLanguage === 'hi' 
+        ? 'क्या आप वाकई सभी पहचान इतिहास को साफ़ करना चाहते हैं?'
+        : 'Are you sure you want to clear all detection history?',
+      [
+        { text: t('cancel'), style: 'cancel' },
+        { 
+          text: t('confirm'), 
+          style: 'destructive',
+          onPress: () => {
+            clearHistory();
+            addNotification({
+              title: currentLanguage === 'hi' ? 'इतिहास साफ़ हो गया' : 'History Cleared',
+              message: currentLanguage === 'hi' 
+                ? 'सभी पहचान इतिहास हटा दिया गया है'
+                : 'All detection history has been removed',
+              type: 'info',
+            });
+          }
+        }
+      ]
+    );
+  };
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={styles.header}>
+        <Animated.View entering={FadeInDown.delay(100)}>
+          <Text style={[styles.title, { color: colors.text }]}>{t('historyTitle')}</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+            {detections.length} {t('totalDetections')}
+          </Text>
+        </Animated.View>
+      </View>
+
+      {/* Filter and Search */}
+      <Animated.View entering={FadeInDown.delay(200)} style={styles.filterContainer}>
+        <Card style={styles.filterCard}>
+          <View style={styles.filterRow}>
+            <TouchableOpacity
+              style={[
+                styles.filterChip,
+                { 
+                  backgroundColor: filter === 'all' ? colors.primary : colors.surface,
+                  borderColor: colors.border,
+                }
+              ]}
+              onPress={() => setFilter('all')}
+            >
+              <Text style={[
+                styles.filterChipText,
+                { color: filter === 'all' ? colors.background : colors.text }
+              ]}>
+                {t('all')}
+              </Text>
+            </TouchableOpacity>
+            
+            {soundTypes.slice(0, 3).map((type) => (
+              <TouchableOpacity
+                key={type}
+                style={[
+                  styles.filterChip,
+                  { 
+                    backgroundColor: filter === type ? colors.primary : colors.surface,
+                    borderColor: colors.border,
+                  }
+                ]}
+                onPress={() => setFilter(filter === type ? 'all' : type)}
+              >
+                <Text style={[
+                  styles.filterChipText,
+                  { color: filter === type ? colors.background : colors.text }
+                ]}>
+                  {type}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          
+          <TouchableOpacity
+            style={styles.statsToggle}
+            onPress={() => setShowStats(!showStats)}
+          >
+            <BarChart3 size={16} color={colors.primary} />
+            <Text style={[styles.statsToggleText, { color: colors.primary }]}>
+              {showStats ? t('hideStatistics') : t('showStatistics')}
+            </Text>
+          </TouchableOpacity>
+        </Card>
+      </Animated.View>
+
+      {/* Statistics */}
+      {showStats && (
+        <Animated.View entering={FadeInDown.delay(250)} style={styles.statsContainer}>
+          <Card style={styles.statsCard}>
+            <Text style={[styles.statsTitle, { color: colors.text }]}>{t('detectionStatistics')}</Text>
+            <View style={styles.statsGrid}>
+              <View style={styles.statItem}>
+                <Text style={[styles.statValue, { color: colors.primary }]}>
+                  {stats.totalDetections}
+                </Text>
+                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+                  {t('totalDetections')}
+                </Text>
+              </View>
+              <View style={styles.statItem}>
+                <Text style={[styles.statValue, { color: colors.success }]}>
+                  {Math.round(stats.avgConfidence * 100)}%
+                </Text>
+                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+                  {t('avgConfidence')}
+                </Text>
+              </View>
+              <View style={styles.statItem}>
+                <Text style={[styles.statValue, { color: colors.accent }]}>
+                  {stats.mostCommon}
+                </Text>
+                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+                  {t('mostCommon')}
+                </Text>
+              </View>
+            </View>
+          </Card>
+        </Animated.View>
+      )}
+
+      {/* Actions */}
+      <Animated.View entering={FadeInDown.delay(300)} style={styles.actionsContainer}>
+        <Button
+          title={t('exportCsv')}
+          onPress={exportHistory}
+          variant="ghost"
+          icon={<Download size={18} color={colors.primary} />}
+          size="small"
+          disabled={isExporting || detections.length === 0}
+        />
+        
+        <Button
+          title={t('share')}
+          onPress={shareHistory}
+          variant="ghost"
+          icon={<Share size={18} color={colors.secondary} />}
+          size="small"
+          disabled={isSharing || detections.length === 0}
+        />
+        
+        <Button
+          title={t('clearHistory')}
+          onPress={handleClearHistory}
+          variant="outline"
+          icon={<Trash2 size={18} color={colors.error} />}
+          size="small"
+          disabled={detections.length === 0}
+        />
+      </Animated.View>
+
+      {/* History List */}
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        {Object.keys(groupedDetections).length > 0 ? (
+          Object.entries(groupedDetections).map(([date, dayDetections], dateIndex) => (
+            <Animated.View
+              key={date}
+              entering={FadeInDown.delay(400 + dateIndex * 100)}
+              style={styles.dateSection}
+            >
+              <Text style={[styles.dateHeader, { color: colors.textSecondary }]}>
+                {new Date(date).toLocaleDateString('en-US', { 
+                  weekday: 'long', 
+                  year: 'numeric', 
+                  month: 'long', 
+                  day: 'numeric' 
+                })}
+              </Text>
+              
+              {dayDetections.map((detection, index) => (
+                <Animated.View
+                  key={detection.id}
+                  entering={SlideInRight.delay(500 + dateIndex * 100 + index * 50)}
+                >
+                  <Card style={styles.detectionCard}>
+                    <View style={styles.detectionHeader}>
+                      <View style={styles.detectionInfo}>
+                        <Text style={[styles.soundType, { color: colors.text }]}>
+                          {detection.soundType}
+                        </Text>
+                        <View style={styles.metaInfo}>
+                          <Clock size={14} color={colors.textSecondary} />
+                          <Text style={[styles.timeText, { color: colors.textSecondary }]}>
+                            {new Date((detection as any).timestamp).toLocaleTimeString()}
+                          </Text>
+                          <Volume2 size={14} color={colors.textSecondary} />
+                          <Text style={[styles.durationText, { color: colors.textSecondary }]}>
+                            {detection.duration}s
+                          </Text>
+                        </View>
+                      </View>
+                      
+                      <View style={styles.confidenceContainer}>
+                        <Text style={[
+                          styles.confidenceText,
+                          { color: getConfidenceColor(detection.confidence) }
+                        ]}>
+                          {Math.round(detection.confidence * 100)}%
+                        </Text>
+                        <View style={[styles.confidenceBar, { backgroundColor: colors.border }]}>
+                          <View style={[
+                            styles.confidenceFill,
+                            { 
+                              backgroundColor: getConfidenceColor(detection.confidence),
+                              width: `${detection.confidence * 100}%`
+                            }
+                          ]} />
+                        </View>
+                      </View>
+                    </View>
+                  </Card>
+                </Animated.View>
+              ))}
+            </Animated.View>
+          ))
+        ) : (
+          <Animated.View entering={FadeInDown.delay(400)} style={styles.emptyContainer}>
+            <Card style={styles.emptyCard}>
+              <Volume2 size={48} color={colors.textSecondary} />
+              <Text style={[styles.emptyTitle, { color: colors.text }]}>No Detections Yet</Text>
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                {t('noDetectionsYet')}
+              </Text>
+            </Card>
+          </Animated.View>
+        )}
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    paddingTop: 50,
+  },
+  header: {
+    padding: 20,
+    paddingBottom: 0,
+  },
+  title: {
+    fontSize: 28,
+    fontFamily: 'Inter-Bold',
+    marginBottom: 4,
+  },
+  subtitle: {
+    fontSize: 16,
+    fontFamily: 'Inter-Regular',
+  },
+  filterContainer: {
+    padding: 20,
+    paddingTop: 16,
+  },
+  filterCard: {
+    padding: 16,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  filterChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  filterChipText: {
+    fontSize: 14,
+    fontFamily: 'Inter-Medium',
+  },
+  actionsContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 16,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 8,
+  },
+  scrollView: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  dateSection: {
+    marginBottom: 24,
+  },
+  dateHeader: {
+    fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
+    marginBottom: 12,
+    paddingLeft: 4,
+  },
+  detectionCard: {
+    marginBottom: 12,
+  },
+  detectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  detectionInfo: {
+    flex: 1,
+  },
+  soundType: {
+    fontSize: 18,
+    fontFamily: 'Inter-SemiBold',
+    marginBottom: 8,
+  },
+  metaInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  timeText: {
+    fontSize: 14,
+    fontFamily: 'Inter-Regular',
+  },
+  durationText: {
+    fontSize: 14,
+    fontFamily: 'Inter-Regular',
+  },
+  confidenceContainer: {
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+  confidenceText: {
+    fontSize: 16,
+    fontFamily: 'Inter-Bold',
+  },
+  confidenceBar: {
+    width: 60,
+    height: 4,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  confidenceFill: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyCard: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontFamily: 'Inter-SemiBold',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptyText: {
+    fontSize: 16,
+    fontFamily: 'Inter-Regular',
+    textAlign: 'center',
+  },
+  statsToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 12,
+    alignSelf: 'center',
+  },
+  statsToggleText: {
+    fontSize: 14,
+    fontFamily: 'Inter-SemiBold',
+  },
+  statsContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 16,
+  },
+  statsCard: {
+    padding: 20,
+  },
+  statsTitle: {
+    fontSize: 18,
+    fontFamily: 'Inter-SemiBold',
+    marginBottom: 16,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  statItem: {
+    alignItems: 'center',
+  },
+  statValue: {
+    fontSize: 24,
+    fontFamily: 'Inter-Bold',
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 12,
+    fontFamily: 'Inter-Medium',
+    textAlign: 'center',
+  },
+});
