@@ -41,7 +41,7 @@ export default function RecordScreen() {
   
   const pulseAnim = useSharedValue(1);
   const waveAnim = useSharedValue(0);
-  const durationInterval = useRef<NodeJS.Timeout | null>(null);
+  const durationInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const animatedPulseStyle = useAnimatedStyle(() => {
     return {
@@ -109,7 +109,7 @@ export default function RecordScreen() {
       setRecording(recording);
       setIsRecording(true);
 
-      if (Platform.OS !== 'web') {
+      if ((Platform as any).OS !== 'web') {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       }
 
@@ -233,15 +233,16 @@ export default function RecordScreen() {
         type: result.confidence > 0.8 ? 'success' : 'warning',
       });
 
-      if (Platform.OS !== 'web') {
+      if ((Platform as any).OS !== 'web') {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     } catch (error) {
       console.error('Processing/upload error', error);
       setIsProcessing(false);
+      const errMsg = error instanceof Error ? error.message : String(error);
       addNotification({
         title: 'Processing Error',
-        message: `Failed to analyze audio file. ${error.message || ''}`,
+        message: `Failed to analyze audio file. ${errMsg}`,
         type: 'error',
       });
     }
@@ -390,10 +391,7 @@ export default function RecordScreen() {
               <Button
                 title=""
                 onPress={isRecording ? stopRecording : startRecording}
-                style={[
-                  styles.recordButton,
-                  { backgroundColor: isRecording ? colors.error : colors.primary }
-                ]}
+                style={([styles.recordButton, { backgroundColor: isRecording ? colors.error : colors.primary }] as any)}
                 icon={isRecording ? <Square size={32} color={colors.background} /> : <Mic size={32} color={colors.background} />}
                 disabled={isProcessing || isUploading}
               />
