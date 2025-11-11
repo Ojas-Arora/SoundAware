@@ -58,6 +58,42 @@ export function AIAssistantProvider({ children }: { children: React.ReactNode })
   ];
   const [isProcessing, setIsProcessing] = useState(false);
 
+  // sanitize assistant text: remove emojis and markdown markers but preserve plain text and line breaks
+  const sanitizeText = (t: string) => {
+    if (!t || typeof t !== 'string') return t;
+    let s = t;
+    // remove common markdown emphasis markers but keep the text
+    s = s.replace(/\*\*|__|`/g, '');
+
+    // replace common bullet characters with a newline so lists remain readable
+    s = s.replace(/[••·]/g, '\n');
+    s = s.replace(/[→➡←]/g, ' -> ');
+
+    // remove a broad set of emoji/pictograph ranges while preserving normal punctuation and letters
+    try {
+      // Unicode property escape (works in modern JS runtimes)
+      s = s.replace(/\p{Extended_Pictographic}/gu, '');
+    } catch (e) {
+      // fallback explicit ranges if Unicode property escapes unsupported
+      s = s.replace(/[\u{1F300}-\u{1F5FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u2600-\u26FF}\u2700-\u27BF]/gu, '');
+    }
+
+    // Trim trailing spaces on each line but preserve newlines
+    s = s.split('\n').map(line => line.replace(/\s+/g, ' ').trim()).join('\n');
+    // collapse multiple blank lines
+    s = s.replace(/\n{3,}/g, '\n\n').trim();
+    return s;
+  };
+
+  const getLatest = () => detections && detections.length > 0 ? detections[0] : null;
+
+  const friendlyLabel = (raw: string) => {
+    // convert class names like 'cough_speech' -> 'cough'
+    if (!raw) return raw;
+    const parts = raw.split('_');
+    return parts[0];
+  };
+
   const knowledgeBase = {
     en: {
       patterns: {
@@ -73,21 +109,15 @@ The model achieves ${Math.round(modelPerformance.accuracy * 100)}% accuracy with
           suggestions: ['What sounds can it detect?', 'How to improve accuracy?', 'Privacy and security?']
         },
         'sound.*detect|what.*sound|which.*sound': {
-          response: `SoundAware can detect 25+ household sounds across different categories:
-
-🏠 **Kitchen Sounds**: Microwave beep, kitchen timer, boiling water, blender, coffee maker, dishwasher
-🔔 **Security Alerts**: Doorbell, door knock, window break, car alarm, motion sensor beep
-🏠 **Appliances**: Washing machine, vacuum cleaner, air conditioner, dryer cycle, garbage disposal
-🐕 **Pet Sounds**: Dog bark, cat meow, bird chirping, hamster wheel
-🚨 **Emergency**: Smoke alarm, carbon monoxide alarm, fire alarm, security siren
-📱 **Communication**: Phone ring, text message notification, video call ring
-🌊 **Ambient**: Running water, footsteps, door closing, chair moving, paper rustling
-
-Current detection stats: ${detections.length} total detections with ${detections.length > 0 ? Math.round(detections.reduce((sum, d) => sum + d.confidence, 0) / detections.length * 100) : 0}% average confidence.`,
+          response: (ctx: { latest: any }) => {
+            const latest = ctx.latest;
+            const latestText = latest ? `Latest: ${friendlyLabel(latest.soundType)} (${Math.round((latest.confidence||0)*100)}%)` : 'No recent detections';
+            return `SoundAware detects ${class_names.length} household sounds across categories. ${latestText}. Use the Record tab to capture new audio or upload files for analysis.`;
+          },
           suggestions: ['How accurate is detection?', 'Can I upload audio files?', 'Real-time monitoring?']
         },
         'which.*classes|class list|classes': {
-          response: `The model recognizes the following classes: ${class_names.join(', ')}.`,
+          response: () => `The model recognizes the following classes: ${class_names.join(', ')}.`,
           suggestions: ['What is the accuracy?', 'How to improve accuracy?']
         },
         'accura.*|precision|reliable': {
@@ -139,28 +169,11 @@ Current detection stats: ${detections.length} total detections with ${detections
           suggestions: ['How does local processing work?', 'Can I export my data?', 'Storage management?']
         },
         'upload.*file|file.*upload|import.*audio': {
-          response: `Yes! SoundAware supports audio file upload and analysis:
-
-📁 **Supported Formats**:
-- MP3 (most common)
-- WAV (high quality)
-- M4A (Apple format)
-- AAC (compressed)
-- FLAC (lossless)
-
-📏 **File Requirements**:
-- Maximum size: 50MB
-- Duration: Up to ${modelSettings.maxDuration} seconds recommended
-- Quality: Higher quality = better detection
-
-🔄 **How to Upload**:
-1. Go to Record tab
-2. Tap "Choose File" button
-3. Select audio file from your device
-4. Wait for analysis (usually 1-3 seconds)
-5. View results with confidence scores
-
-The same ML model processes uploaded files with identical accuracy to live recordings.`,
+          response: (ctx: { latest: any }) => {
+            const latest = ctx.latest;
+            const note = latest ? `Last upload detected: ${friendlyLabel(latest.soundType)} (${Math.round((latest.confidence||0)*100)}%)` : '';
+            return `Yes — you can upload audio files (MP3, WAV, M4A, AAC, FLAC). Max 50MB. Recommended duration ${modelSettings.maxDuration}s. ${note}`;
+          },
           suggestions: ['What file formats work best?', 'File size limits?', 'Processing time?']
         },
         'real.*time|live|instant': {
@@ -187,6 +200,24 @@ The same ML model processes uploaded files with identical accuracy to live recor
 
 The app can detect and classify sounds within 1-2 seconds of occurrence!`,
           suggestions: ['Battery usage?', 'Background monitoring?', 'Performance optimization?']
+        },
+        // direct yes/no queries like "is this a cough?" or "is that dog barking?"
+        'is\s+.*(cough|dog|cat|applause|doorbell|glass|gun|drill|slam|toilet|dishes|crying|bark|meow)': {
+          response: (ctx: { latest: any; query?: string }) => {
+            const latest = ctx.latest;
+            const q = (ctx.query || '').toLowerCase();
+            if (!latest) return 'I have no recent detection to compare. Please record or upload a short clip and try again.';
+            // find which keyword user asked about
+            const keywords = ['cough','dog','cat','applause','doorbell','glass','gun','drill','slam','toilet','dishes','crying','bark','meow'];
+            const asked = keywords.find(k => q.includes(k));
+            if (!asked) return `I couldn't identify which sound you're asking about.`;
+            // map latest.soundType to friendly
+            const latestFriendly = friendlyLabel(latest.soundType).toLowerCase();
+            if (latestFriendly.includes(asked) || asked.includes(latestFriendly)) {
+              return `Yes — recent detection: ${friendlyLabel(latest.soundType)} with ${(Math.round((latest.confidence||0)*100))}% confidence.`;
+            }
+            return `No — the most recent detection was ${friendlyLabel(latest.soundType)} (${Math.round((latest.confidence||0)*100)}% confidence), not ${asked}.`;
+          }
         },
         'help|support|how.*use|tutorial': {
           response: `Welcome to SoundAware! Here's your complete guide:
@@ -412,10 +443,22 @@ What would you like to know more about?`
       for (const [pattern, response] of Object.entries(language.patterns)) {
         const regex = new RegExp(pattern, 'i');
         if (regex.test(queryLower)) {
+          const latest = getLatest();
+          let text: string;
+          if (typeof response.response === 'function') {
+            try {
+              // call dynamic response function with context (cast to any to avoid strict typing issues)
+              text = (response.response as any)({ latest, query: queryLower, class_names });
+            } catch (e) {
+              text = language.fallback;
+            }
+          } else {
+            text = response.response as string;
+          }
           setIsProcessing(false);
           return {
-            text: response.response,
-            suggestions: response.suggestions
+            text: sanitizeText(text),
+            suggestions: (response as any).suggestions ?? []
           };
         }
       }
@@ -423,15 +466,16 @@ What would you like to know more about?`
       // Fallback response
       setIsProcessing(false);
       return {
-        text: language.fallback,
+        text: sanitizeText(language.fallback),
         suggestions: ['How does it work?', 'What sounds can it detect?', 'Help and support?']
       };
     } catch (error) {
       setIsProcessing(false);
+      const errMsg = currentLanguage === 'hi' 
+        ? 'क्षमा करें, मुझे आपका प्रश्न समझने में कठिनाई हो रही है। कृपया दूसरे तरीके से पूछें।'
+        : 'I apologize, but I\'m having trouble understanding your question. Could you please rephrase it?';
       return {
-        text: currentLanguage === 'hi' 
-          ? 'क्षमा करें, मुझे आपका प्रश्न समझने में कठिनाई हो रही है। कृपया दूसरे तरीके से पूछें।'
-          : 'I apologize, but I\'m having trouble understanding your question. Could you please rephrase it?',
+        text: sanitizeText(errMsg),
         suggestions: ['How does it work?', 'What sounds can it detect?', 'Help and support?']
       };
     }

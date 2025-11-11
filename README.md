@@ -60,8 +60,60 @@ This runs `expo start` and shows a QR code and connection options (LAN/Tunnel/Lo
 
 
 ## Run on a Mobile Device (Same Wi‑Fi/LAN Required)
+
 Your mobile device and laptop must be on the same Wi‑Fi network. This ensures the Expo dev server’s LAN IP is reachable from your phone.
 
+## Run (Backend)
+
+.\start-backend.ps1
+or 
+Use Two Terminals 
+1. Run cd backend and Run python app.py
+2. Run .\start-backend.ps1
+
+Backend: ffmpeg (required for mobile uploads)
+Why ffmpeg?
+
+Mobile/Expo recordings often arrive in containers (WebM / MP4 / M4A) that Python/librosa cannot decode directly.
+The backend uses ffmpeg to convert uploaded audio to 16 kHz mono WAV before creating the mel spectrogram for the model.
+If ffmpeg is not available to the backend process, non‑WAV uploads will fail and the server will return errors.
+Quick summary: install ffmpeg once, then start the backend in a terminal that sees ffmpeg. Start Expo in a separate terminal.
+
+1. Install ffmpeg
+Windows — non-admin (recommended)
+
+# one-line user install (downloads a static build and places bin in %USERPROFILE%\tools\ffmpeg)
+a. $dest = Join-Path $env:USERPROFILE 'tools\ffmpeg'; New-Item -ItemType Directory -Path $dest -Force
+b. $zip = Join-Path $env:TEMP 'ffmpeg.zip'
+c. Invoke-WebRequest -Uri 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip' -OutFile $zip
+d. $extract = Join-Path $env:TEMP 'ffmpeg_extract'
+e. Remove-Item -Recurse -Force $extract -ErrorAction SilentlyContinue
+f. Expand-Archive -Path $zip -DestinationPath $extract -Force
+g. $inner = Get-ChildItem -Path $extract -Directory | Select-Object -First 1
+h. Copy-Item -Path (Join-Path $inner.FullName 'bin\*') -Destination $dest -Recurse -Force
+# add to user PATH for future sessions
+i. $old = [Environment]::GetEnvironmentVariable('PATH','User'); [Environment]::SetEnvironmentVariable('PATH', "$dest;$old",'User')
+# make available in current shell immediately
+j. $env:PATH = "$dest;$env:PATH"
+h. ffmpeg -version
+
+2. Restart backend so it can see ffmpeg
+The running backend process inherits PATH from the shell that launched it. After installing or adding ffmpeg to PATH:
+
+Open a new terminal (PowerShell / bash).
+
+Confirm ffmpeg is visible:
+a. ffmpeg -version
+b. python -c "import shutil; print(shutil.which('ffmpeg'))"
+
+Both should show a path and version.
+
+3. Run both quickly (convenience)
+We include start-backend.ps1 in the repo which ensures ffmpeg path is set for the spawned backend. Use it from repository root:
+
+.\start-backend.ps1
+# then in another terminal:
+npx expo start -c
 
 Steps:
 1. Connect both devices to the same Wi‑Fi (same router SSID). Guest networks/hotspots may restrict LAN access.

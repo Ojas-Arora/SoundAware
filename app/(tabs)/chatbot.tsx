@@ -5,9 +5,9 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useAIAssistant } from '@/contexts/AIAssistantContext';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { VoiceInput } from '@/components/ui/VoiceInput';
+// VoiceInput removed per UX request (no microphone in chat input)
 import { ChatMessage } from '@/types';
-import { Send, Bot, User, Sparkles, Lightbulb } from 'lucide-react-native';
+import { Send } from 'lucide-react-native';
 import Animated, { FadeInDown, SlideInRight, SlideInLeft } from 'react-native-reanimated';
 
 export default function ChatbotScreen() {
@@ -101,7 +101,7 @@ export default function ChatbotScreen() {
         setTimeout(() => {
           const suggestionMessage: ChatMessage = {
             id: (Date.now() + 2).toString(),
-            text: `💡 ${currentLanguage === 'hi' ? 'सुझाव' : 'Suggestions'}: ${aiResponse.suggestions?.join(' • ')}`,
+            text: `${currentLanguage === 'hi' ? 'सुझाव' : 'Suggestions'}: ${aiResponse.suggestions?.join(', ')}`,
             isUser: false,
             timestamp: new Date(),
           };
@@ -154,7 +154,6 @@ export default function ChatbotScreen() {
       {/* Header */}
       <Animated.View entering={FadeInDown.delay(100)} style={[styles.header, { borderBottomColor: colors.border }]}>
         <View style={styles.headerContent}>
-          <Sparkles size={24} color={colors.primary} />
           <Text style={[styles.title, { color: colors.text }]}>{t('aiAssistant')}</Text>
         </View>
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
@@ -212,11 +211,6 @@ export default function ChatbotScreen() {
               }
             ]}>
               <View style={styles.messageHeader}>
-                {message.isUser ? (
-                  <User size={16} color={colors.background} />
-                ) : (
-                  <Bot size={16} color={colors.primary} />
-                )}
                 <Text style={[
                   styles.messageText,
                   { color: message.isUser ? colors.background : colors.text }
@@ -238,7 +232,6 @@ export default function ChatbotScreen() {
           <Animated.View entering={SlideInLeft} style={styles.aiMessageWrapper}>
             <Card style={[styles.messageCard, { backgroundColor: colors.card }]}>
               <View style={styles.typingIndicator}>
-                <Bot size={16} color={colors.primary} />
                 <Text style={[styles.typingText, { color: colors.textSecondary }]}>
                   {t('aiTyping')}
                 </Text>
@@ -266,12 +259,7 @@ export default function ChatbotScreen() {
             multiline
             maxLength={500}
           />
-          <VoiceInput 
-            onResult={(text) => {
-              setInputText(text);
-              setTimeout(() => sendMessage(), 500);
-            }}
-          />
+          {/* Voice input removed per user preference */}
           <TouchableOpacity
             style={[
               styles.sendButton, 
@@ -403,6 +391,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     gap: 12,
+    // Remove default browser focus outline on web
+    outlineWidth: 0,
+    outlineColor: 'transparent',
   },
   textInput: {
     flex: 1,
@@ -410,6 +401,8 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Regular',
     maxHeight: 100,
     minHeight: 20,
+    outlineWidth: 0,
+    outlineColor: 'transparent',
   },
   sendButton: {
     width: 40,

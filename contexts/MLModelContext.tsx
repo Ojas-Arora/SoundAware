@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface MLModelSettings {
@@ -113,13 +114,37 @@ export function MLModelProvider({ children }: { children: React.ReactNode }) {
   };
 
   const processAudio = async (audioUri: string, sensitivity?: number): Promise<PredictionResult> => {
-    // Send audio file to backend predict endpoint and return the model's prediction.
-    const BACKEND_BASE = (global as any).BACKEND_URL || 'http://192.168.29.32:5000';
-    const PRED_URL = `${BACKEND_BASE}/predict`;
+    // Try to POST the audio to one of several backend candidates (global override, then Expo debuggerHost-derived IP),
+    // so that Expo Go on device can reach the dev machine even when the hardcoded IP is wrong.
+    const candidates: string[] = [];
 
+    // 1) explicit override set by app (recommended)
+    if ((global as any).BACKEND_URL) {
+      candidates.push((global as any).BACKEND_URL.replace(/\/$/, ''));
+    }
+
+    // 2) If running in Expo, derive LAN IP from debuggerHost (e.g. "192.168.1.5:19000")
     try {
+      const dbg = (Constants as any).manifest?.debuggerHost || (Constants as any).debuggerHost;
+      if (dbg && typeof dbg === 'string') {
+        const host = dbg.split(':')[0];
+        if (host && !candidates.includes(`http://${host}:5000`)) {
+          candidates.push(`http://${host}:5000`);
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    // 3) fallback to localhost (useful for web on same machine)
+    candidates.push('http://127.0.0.1:5000');
+
+    // 4) last-resort: keep previous hardcoded candidate if present
+    candidates.push('http://192.168.29.32:5000');
+
+    // Build form data helper
+    const buildForm = async () => {
       const form = new FormData();
-      // derive filename and mime
       const filename = audioUri.split('/').pop() || `recording_${Date.now()}.wav`;
       const ext = filename.includes('.') ? filename.split('.').pop() : 'wav';
       let mime = 'audio/wav';
@@ -127,7 +152,6 @@ export function MLModelProvider({ children }: { children: React.ReactNode }) {
       else if (ext === 'mp3') mime = 'audio/mpeg';
       else if (ext === 'flac') mime = 'audio/flac';
 
-      // For web, fetch the blob; for native, provide { uri, name, type }
       if (typeof window !== 'undefined' && (window as any).location) {
         const resp = await fetch(audioUri);
         const blob = await resp.blob();
@@ -135,38 +159,52 @@ export function MLModelProvider({ children }: { children: React.ReactNode }) {
       } else {
         form.append('file', { uri: audioUri, name: filename, type: mime } as any);
       }
+      return form;
+    };
 
-      // Attempt POST to backend
-      const res = await fetch(PRED_URL, { method: 'POST', body: form });
-      if (!res.ok) {
-        throw new Error(`Server error ${res.status}`);
+    const form = await buildForm();
+
+    // Try each candidate sequentially until one succeeds
+    let lastError: any = null;
+    for (const base of candidates) {
+      const url = `${base.replace(/\/$/, '')}/predict`;
+      try {
+        const res = await fetch(url, { method: 'POST', body: form as any });
+        if (!res.ok) {
+          lastError = new Error(`Server error ${res.status} from ${url}`);
+          console.warn('processAudio: server returned non-OK', res.status, url);
+          continue; // try next candidate
+        }
+
+        const json = await res.json();
+        const pred_label: string = json.pred_label || (json.pred_label && String(json.pred_label)) || 'unknown';
+        const pred_idx: number = typeof json.pred_idx === 'number' ? json.pred_idx : -1;
+        const scores: number[] = Array.isArray(json.scores) ? json.scores : [];
+        const confidence = pred_idx >= 0 && scores[pred_idx] != null ? scores[pred_idx] : (json.top_k && json.top_k[0] && json.top_k[0].score) || 0;
+
+        setModelPerformance(prev => ({ ...prev, inferenceTime: json.inference_time_ms || prev.inferenceTime, lastUpdated: new Date() }));
+
+        return {
+          soundType: pred_label,
+          confidence: typeof confidence === 'number' ? confidence : 0,
+          duration: json.duration || 0,
+          alternatives: (json.top_k || []).slice(1, 3).map((it: any) => ({ soundType: it.label, confidence: it.score }))
+        };
+      } catch (err) {
+        // Typical network error on Expo Go will be TypeError: Network request failed
+        console.warn('processAudio: attempt failed for', url, err);
+        lastError = err;
+        // try next candidate
       }
-
-      const json = await res.json();
-      const pred_label: string = json.pred_label || (json.pred_label && String(json.pred_label)) || 'unknown';
-      const pred_idx: number = typeof json.pred_idx === 'number' ? json.pred_idx : -1;
-      const scores: number[] = Array.isArray(json.scores) ? json.scores : [];
-
-      const confidence = pred_idx >= 0 && scores[pred_idx] != null ? scores[pred_idx] : (json.top_k && json.top_k[0] && json.top_k[0].score) || 0;
-
-      // Update performance timing (approx)
-      setModelPerformance(prev => ({ ...prev, inferenceTime: json.inference_time_ms || prev.inferenceTime, lastUpdated: new Date() }));
-
-      return {
-        soundType: pred_label,
-        confidence: typeof confidence === 'number' ? confidence : 0,
-        duration: json.duration || 0,
-        alternatives: (json.top_k || []).slice(1, 3).map((it: any) => ({ soundType: it.label, confidence: it.score }))
-      };
-    } catch (error) {
-      console.warn('processAudio: backend request failed', error);
-      // If backend fails, return unknown with zero confidence (do NOT return static mock classes)
-      return {
-        soundType: 'unknown',
-        confidence: 0,
-        duration: 0,
-      };
     }
+
+    // All attempts failed — surface the last network error to console and return unknown
+    console.warn('processAudio: backend request failed for all candidates', lastError);
+    return {
+      soundType: 'unknown',
+      confidence: 0,
+      duration: 0,
+    };
   };
 
   const resetModel = async () => {

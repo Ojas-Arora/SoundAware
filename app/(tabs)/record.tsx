@@ -270,28 +270,71 @@ export default function RecordScreen() {
 
       // Try to upload to backend for inference on all platforms (web & native).
       // For React Native / Expo, fetch with FormData and a file object ({ uri, name, type }) works.
-  try {
-  // Prepare upload form. For web we convert to a 16kHz mono WAV blob before uploading.
-  const form = new FormData();
-  const derivedName = uri.split('/').pop() || `recording${Date.now()}.wav`;
-  // force filename to .wav for backend clarity
-  const filename = (uploadedFile || derivedName).replace(/\.[^/.]+$/, '') + '.wav';
-
-  if ((Platform as any).OS === 'web') {
-    // convert to WAV (16kHz mono) in-browser to match server expectations
     try {
-      const wavBlob = await convertToWavBlobWeb(uri, 16000);
-      form.append('file', wavBlob, filename);
-    } catch (e) {
-      console.warn('Web WAV conversion failed, falling back to raw blob', e);
-      const resp = await fetch(uri);
-      const blob = await resp.blob();
-      form.append('file', blob, filename);
-    }
-  } else {
-    // Native: attach the recorded file but present as .wav filename so server can detect/convert if needed
-    form.append('file', { uri, name: filename, type: 'audio/wav' } as any);
-  }
+      // Helper: try to convert a native recorded file to 16kHz mono WAV using ffmpeg-kit
+      const tryConvertNativeToWav = async (inputUri: string): Promise<string | null> => {
+        try {
+          const mod = await import('ffmpeg-kit-react-native');
+          const FFmpegKit = (mod as any).FFmpegKit;
+          if (!FFmpegKit) return null;
+
+          const inPath = inputUri.startsWith('file://') ? inputUri.replace('file://', '') : inputUri;
+          const outPath = FileSystem.cacheDirectory + `conv_${Date.now()}.wav`;
+          const cmd = `-y -i "${inPath}" -ar 16000 -ac 1 "${outPath}"`;
+          const session = await FFmpegKit.execute(cmd);
+          const rc = await session.getReturnCode();
+          if (rc && rc.isValueSuccess && rc.isValueSuccess()) {
+            return outPath;
+          }
+          console.warn('[ffmpeg-kit] conversion failed rc=', rc);
+          return null;
+        } catch (e) {
+          return null;
+        }
+      };
+
+      // Prepare upload form. For web we convert to a 16kHz mono WAV blob before uploading.
+      const form = new FormData();
+      const derivedName = uri.split('/').pop() || `recording${Date.now()}.wav`;
+      // force filename to .wav for backend clarity
+      const filename = (uploadedFile || derivedName).replace(/\.[^/.]+$/, '') + '.wav';
+
+      if ((Platform as any).OS === 'web') {
+        // convert to WAV (16kHz mono) in-browser to match server expectations
+        try {
+          const wavBlob = await convertToWavBlobWeb(uri, 16000);
+          form.append('file', wavBlob, filename);
+        } catch (e) {
+          console.warn('Web WAV conversion failed, falling back to raw blob', e);
+          const resp = await fetch(uri);
+          const blob = await resp.blob();
+          form.append('file', blob, filename);
+        }
+      } else {
+        // Native: attempt on-device conversion with ffmpeg-kit (if available)
+        let convertedPath: string | null = null;
+        try {
+          convertedPath = await tryConvertNativeToWav(uri);
+        } catch (e) {
+          convertedPath = null;
+        }
+
+        if (convertedPath) {
+          form.append('file', { uri: convertedPath, name: filename, type: 'audio/wav' } as any);
+        } else {
+          // Fall back to original file and rely on server-side ffmpeg conversion (server must have ffmpeg installed)
+          form.append('file', { uri, name: filename, type: 'audio/wav' } as any);
+          try {
+            addNotification({
+              title: currentLanguage === 'hi' ? 'डिवाइस कन्वर्शन अनुपलब्ध' : 'Device conversion unavailable',
+              message: currentLanguage === 'hi'
+                ? 'Local conversion (ffmpeg-kit) अनुपलब्ध है। बेहतर परिणामों के लिए एक prebuilt dev client बनाएं।'
+                : 'Local ffmpeg conversion (ffmpeg-kit) is not available. Consider a prebuilt dev client for on-device conversion.',
+              type: 'info',
+            });
+          } catch (_e) {}
+        }
+      }
 
         // derive an effective backend URL so Expo Go on device uses the dev machine IP
         let backendUrl = PRED_URL;
@@ -355,6 +398,21 @@ export default function RecordScreen() {
         return;
       } catch (err) {
         console.warn('Backend upload failed, falling back to local model:', err);
+        // If the server reported ffmpeg/conversion missing, surface a clearer message to the user
+        try {
+          const msg = err && (err as any).message ? (err as any).message : String(err);
+          if (typeof msg === 'string' && (msg.toLowerCase().includes('conversion not available') || msg.toLowerCase().includes('ffmpeg not found') || msg.toLowerCase().includes('audio_to_mel_image failed'))) {
+            addNotification({
+              title: currentLanguage === 'hi' ? 'सर्वर कन्वर्शन अनुपलब्ध' : 'Server conversion missing',
+              message: currentLanguage === 'hi'
+                ? 'बैकएंड पर ffmpeg अनुपलब्ध है। फोन से अपलोड किए गए फ़ाइलों को सर्वर पर WAV में बदलने के लिए ffmpeg इंस्टॉल करें (विकास मशीन पर) या ngrok का उपयोग करें।'
+                : 'ffmpeg is missing on the backend. Install ffmpeg on the dev machine so uploaded files can be converted to WAV, or use a tunnel (ngrok) as a workaround.',
+              type: 'warning',
+            });
+          }
+        } catch (_e) {
+          // swallow
+        }
         // fallback to local processing below
       }
 
