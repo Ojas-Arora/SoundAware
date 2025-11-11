@@ -40,6 +40,18 @@ Windows tips:
 
 
 ## Run (Development)
+
+$env:REACT_NATIVE_PACKAGER_HOSTNAME="xxx.xxx.xx.xx"
+Replace xxx.xxx.xx.xx with your IP Address of the Devices.
+
+record.tsx
+const BACKEND_BASE = (global as any).BACKEND_URL || 'http://xxx.xxx.xx.xx:5000';
+Replace xxx.xxx.xx.xx with your IP Address of the Devices.
+
+index.js
+global.BACKEND_URL = 'http://xx.xx.xx.xx:5000';
+Replace xxx.xxx.xx.xx with your IP Address of the Devices.
+
 Start the local development server:
 ```bash
 npx expo start -c
@@ -50,13 +62,6 @@ This runs `expo start` and shows a QR code and connection options (LAN/Tunnel/Lo
 ## Run on a Mobile Device (Same Wi‑Fi/LAN Required)
 Your mobile device and laptop must be on the same Wi‑Fi network. This ensures the Expo dev server’s LAN IP is reachable from your phone.
 
-record.tsx
-const BACKEND_BASE = (global as any).BACKEND_URL || 'http://xxx.xxx.xx.xx:5000';
-Replace xxx.xxx.xx.xx with your IP Address of the Devices.
-
-index.js
-global.BACKEND_URL = 'http://xx.xx.xx.xx:5000';
-Replace xxx.xxx.xx.xx with your IP Address of the Devices.
 
 Steps:
 1. Connect both devices to the same Wi‑Fi (same router SSID). Guest networks/hotspots may restrict LAN access.
