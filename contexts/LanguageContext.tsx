@@ -26,7 +26,7 @@ const translations = {
     
     // Home Screen
     homeTitle: 'Sound Monitor',
-    homeSubtitle: 'AI-powered household sound detection',
+    homeSubtitle: 'ML-powered household sound detection',
     activelyMonitoring: 'Actively Monitoring',
     monitoringPaused: 'Monitoring Paused',
     today: 'Today',

@@ -5,11 +5,10 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useSoundDetection } from '@/contexts/SoundDetectionContext';
 import { useNotifications } from '@/contexts/NotificationContext';
-import { useMLModel } from '@/contexts/MLModelContext';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { AudioVisualizer } from '@/components/ui/AudioVisualizer';
-import { Activity, Mic, Bell, TrendingUp, Volume2, Shield, Brain, Zap, Database, Clock, ChartBar as BarChart3 } from 'lucide-react-native';
+import { Activity, Mic, Bell, TrendingUp, Volume2, Clock, ChartBar as BarChart3 } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInRight } from 'react-native-reanimated';
 
 const { width } = Dimensions.get('window');
@@ -20,7 +19,6 @@ export default function HomeScreen() {
   const router = useRouter();
   const { detections, isRecording } = useSoundDetection();
   const { addNotification, unreadCount } = useNotifications();
-  const { modelPerformance, isModelLoaded } = useMLModel();
   const [stats, setStats] = useState({
     todayDetections: 0,
     mostCommon: 'None',
@@ -85,7 +83,9 @@ export default function HomeScreen() {
     });
   };
 
-  const recentDetections = detections.slice(0, 5);
+  const [selectedClass, setSelectedClass] = useState<string | null>(null);
+  const filteredDetections = selectedClass ? detections.filter(d => d.soundType === selectedClass) : detections;
+  const recentDetections = filteredDetections.slice(0, 5);
 
   const getTimeAgo = (timestamp: Date) => {
     const now = new Date();
@@ -100,6 +100,22 @@ export default function HomeScreen() {
     const diffInDays = Math.floor(diffInHours / 24);
     return `${diffInDays}d ago`;
   };
+
+  // Canonical model classes (used to display Detection Capabilities)
+  const modelClasses = [
+    "applause_no_speech", "applause_speech",
+    "cat_meowing_no_speech", "cat_meowing_speech",
+    "cough_no_speech", "cough_speech",
+    "crying_no_speech", "crying_speech",
+    "dishes_pot_pan_no_speech", "dishes_pot_pan_speech",
+    "dog_barking_no_speech", "dog_barking_speech",
+    "doorbell_no_speech", "doorbell_speech",
+    "drill_no_speech", "drill_speech",
+    "glass_breaking_no_speech", "glass_breaking_speech",
+    "gun_shot_no_speech", "gun_shot_speech",
+    "slam_no_speech", "slam_speech",
+    "toilet_flush_no_speech", "toilet_flush_speech"
+  ];
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -165,47 +181,7 @@ export default function HomeScreen() {
           </Card>
         </Animated.View>
 
-        {/* ML Model Status */}
-        <Animated.View entering={FadeInDown.delay(350)}>
-          <Card style={styles.modelStatusCard}>
-            <View style={styles.modelHeader}>
-              <Brain size={24} color={colors.primary} />
-              <Text style={[styles.modelTitle, { color: colors.text }]}>AI Model Status</Text>
-              <View style={[
-                styles.modelStatusBadge, 
-                { backgroundColor: isModelLoaded ? colors.success : colors.warning }
-              ]}>
-                <Text style={[styles.modelStatusText, { color: colors.background }]}>
-                  {isModelLoaded ? 'Ready' : 'Loading'}
-                </Text>
-              </View>
-            </View>
-            
-            <View style={styles.modelMetrics}>
-              <View style={styles.metricItem}>
-                <Zap size={16} color={colors.accent} />
-                <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>Inference</Text>
-                <Text style={[styles.metricValue, { color: colors.text }]}>
-                  {modelPerformance.inferenceTime}ms
-                </Text>
-              </View>
-              <View style={styles.metricItem}>
-                <Database size={16} color={colors.secondary} />
-                <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>Precision</Text>
-                <Text style={[styles.metricValue, { color: colors.text }]}>
-                  {Math.round(modelPerformance.precision * 100)}%
-                </Text>
-              </View>
-              <View style={styles.metricItem}>
-                <Activity size={16} color={colors.primary} />
-                <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>F1 Score</Text>
-                <Text style={[styles.metricValue, { color: colors.text }]}>
-                  {Math.round(modelPerformance.f1Score * 100)}%
-                </Text>
-              </View>
-            </View>
-          </Card>
-        </Animated.View>
+        {/* (Removed) AI Model Status - using canonical class list below instead */}
 
         {/* Quick Actions */}
         <Animated.View entering={FadeInDown.delay(400)}>
@@ -234,9 +210,16 @@ export default function HomeScreen() {
           <Card style={styles.recentCard}>
             <View style={styles.recentHeader}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('recentDetections')}</Text>
-              <TouchableOpacity onPress={() => router.push('/history')}>
-                <Text style={[styles.viewAllText, { color: colors.primary }]}>View All</Text>
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                {selectedClass ? (
+                  <TouchableOpacity onPress={() => setSelectedClass(null)}>
+                    <Text style={[styles.viewAllText, { color: colors.primary }]}>Clear filter</Text>
+                  </TouchableOpacity>
+                ) : null}
+                <TouchableOpacity onPress={() => router.push('/history')}>
+                  <Text style={[styles.viewAllText, { color: colors.primary }]}>View All</Text>
+                </TouchableOpacity>
+              </View>
             </View>
             
             {recentDetections.length > 0 ? (
@@ -286,35 +269,30 @@ export default function HomeScreen() {
           <Card style={styles.modelCard}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Detection Capabilities</Text>
             <View style={styles.modelInfo}>
-              <View style={styles.capabilityRow}>
-                <Shield size={16} color={colors.success} />
-                <Text style={[styles.modelText, { color: colors.textSecondary }]}>
-                  Kitchen: Timer, Microwave, Boiling Water, Blender
-                </Text>
-              </View>
-              <View style={styles.capabilityRow}>
-                <Bell size={16} color={colors.warning} />
-                <Text style={[styles.modelText, { color: colors.textSecondary }]}>
-                  Security: Doorbell, Alarms, Breaking Glass
-                </Text>
-              </View>
-              <View style={styles.capabilityRow}>
-                <Volume2 size={16} color={colors.primary} />
-                <Text style={[styles.modelText, { color: colors.textSecondary }]}>
-                  Appliances: Washing Machine, Vacuum, AC
-                </Text>
-              </View>
-              <View style={styles.capabilityRow}>
-                <Activity size={16} color={colors.secondary} />
-                <Text style={[styles.modelText, { color: colors.textSecondary }]}>
-                  Pets: Dog Bark, Cat Meow, Bird Chirping
-                </Text>
-              </View>
-              <View style={styles.capabilityRow}>
-                <TrendingUp size={16} color={colors.error} />
-                <Text style={[styles.modelText, { color: colors.textSecondary }]}>
-                  Emergency: Smoke Alarm, CO Detector
-                </Text>
+              <Text style={[styles.modelSubtitle, { color: colors.textSecondary }]}>Listed below are the exact classes this model can detect. Tap a class in History to filter.</Text>
+
+              <View style={styles.chipsContainer}>
+                {modelClasses.map((c) => {
+                  const selected = selectedClass === c;
+                  return (
+                    <TouchableOpacity
+                      key={c}
+                      onPress={() => setSelectedClass(prev => prev === c ? null : c)}
+                      activeOpacity={0.8}
+                      style={[
+                        styles.chip,
+                        {
+                          backgroundColor: selected ? colors.primary : colors.card,
+                          borderColor: selected ? colors.primary : 'transparent'
+                        }
+                      ]}
+                    >
+                      <Text style={[styles.chipText, { color: selected ? colors.background : colors.text }]}>
+                        {c.replace(/_/g, ' ')}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             </View>
           </Card>
@@ -523,5 +501,29 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'Inter-Regular',
     flex: 1,
+  },
+  modelSubtitle: {
+    fontSize: 13,
+    fontFamily: 'Inter-Regular',
+    marginBottom: 8,
+  },
+  chipsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'flex-start',
+    marginTop: 6,
+  },
+  chip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginRight: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  chipText: {
+    fontSize: 12,
+    fontFamily: 'Inter-Medium',
   },
 });

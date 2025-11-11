@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState } from 'react';
 import { useLanguage } from './LanguageContext';
 import { useSoundDetection } from './SoundDetectionContext';
-import { useMLModel } from './MLModelContext';
 
 interface AIResponse {
   text: string;
@@ -22,7 +21,41 @@ const AIAssistantContext = createContext<AIAssistantContextType | undefined>(und
 export function AIAssistantProvider({ children }: { children: React.ReactNode }) {
   const { currentLanguage, t } = useLanguage();
   const { detections } = useSoundDetection();
-  const { modelSettings, modelPerformance } = useMLModel();
+
+  // Remove dependency on MLModelContext: use fixed defaults or derive from detections.
+  // The app uses a single canonical ML model served by the backend (used for uploaded files).
+  const modelSettings = {
+    maxDuration: 3,
+    sampleRate: 16000,
+    sensitivity: detections.length > 0 ? (detections[0].confidence ?? 0.75) : 0.75,
+    confidenceThreshold: 0.6,
+    batchSize: 1024,
+    enablePreprocessing: true,
+    enablePostprocessing: true,
+  } as const;
+
+  const modelPerformance = {
+    accuracy: 0.71,
+    inferenceTime: 50,
+    precision: 0.8,
+    f1Score: 0.8,
+  } as const;
+  
+  // Canonical class names (match contexts/pred_with_audio.py)
+  const class_names = [
+    "applause_no_speech", "applause_speech",
+    "cat_meowing_no_speech", "cat_meowing_speech",
+    "cough_no_speech", "cough_speech",
+    "crying_no_speech", "crying_speech",
+    "dishes_pot_pan_no_speech", "dishes_pot_pan_speech",
+    "dog_barking_no_speech", "dog_barking_speech",
+    "doorbell_no_speech", "doorbell_speech",
+    "drill_no_speech", "drill_speech",
+    "glass_breaking_no_speech", "glass_breaking_speech",
+    "gun_shot_no_speech", "gun_shot_speech",
+    "slam_no_speech", "slam_speech",
+    "toilet_flush_no_speech", "toilet_flush_speech"
+  ];
   const [isProcessing, setIsProcessing] = useState(false);
 
   const knowledgeBase = {
@@ -52,6 +85,10 @@ The model achieves ${Math.round(modelPerformance.accuracy * 100)}% accuracy with
 
 Current detection stats: ${detections.length} total detections with ${detections.length > 0 ? Math.round(detections.reduce((sum, d) => sum + d.confidence, 0) / detections.length * 100) : 0}% average confidence.`,
           suggestions: ['How accurate is detection?', 'Can I upload audio files?', 'Real-time monitoring?']
+        },
+        'which.*classes|class list|classes': {
+          response: `The model recognizes the following classes: ${class_names.join(', ')}.`,
+          suggestions: ['What is the accuracy?', 'How to improve accuracy?']
         },
         'accura.*|precision|reliable': {
           response: `SoundAware's accuracy depends on several factors:
@@ -339,6 +376,10 @@ What would you like to know more about?`
 
 **सटीकता बढ़ाने के टिप्स**: शांत वातावरण में रिकॉर्ड करें, डिवाइस को ध्वनि स्रोत के पास रखें।`,
           suggestions: ['सटीकता कैसे बढ़ाएं?', 'सेटिंग्स कैसे बदलें?', 'बेहतर परिणाम कैसे पाएं?']
+        },
+        'classes|क्लास|कौन सी क्लास': {
+          response: `मॉडल निम्नलिखित क्लासेस पहचानता है: ${class_names.join(', ')}`,
+          suggestions: ['मॉडल की सटीकता क्या है?', 'सटीकता कैसे बढ़ाएं?']
         }
       },
       fallback: `मैं SoundAware का AI सहायक हूं! मैं आपकी मदद कर सकता हूं:
