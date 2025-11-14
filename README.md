@@ -1,6 +1,7 @@
 # SoundAware 
 
-<img width="1919" height="857" alt="Screenshot 2025-09-22 232844" src="https://github.com/user-attachments/assets/f9d587fa-44dc-4307-b3d3-de67a3d2c204" />
+<img width="1919" height="868" alt="image" src="https://github.com/user-attachments/assets/480b6156-713f-49c8-b6b4-0495fef56456" />
+
 
 SoundAware is a mobile app built with Expo (React Native) using Expo Router. This README explains how to install dependencies, run the project, and use the app on a physical mobile device on the same Wi‑Fi/LAN as your laptop so the LAN IP is reachable.
 
