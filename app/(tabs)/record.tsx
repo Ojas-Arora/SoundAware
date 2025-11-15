@@ -300,7 +300,10 @@ export default function RecordScreen() {
     try {
       // If running in the browser, upload the file to the backend /predict endpoint
       // so the backend TFLite model (contexts/model_int8.tflite) does the inference.
-      const BACKEND_BASE = (global as any).BACKEND_URL || 'http://192.168.29.32:5000';
+      // Prefer a build-time env var (NEXT_PUBLIC_API_URL) when available (used by Vercel/Next).
+      const BACKEND_BASE = (typeof process !== 'undefined' && (process as any).env && (process as any).env.NEXT_PUBLIC_API_URL)
+        ? ((process as any).env.NEXT_PUBLIC_API_URL as string).replace(/\/$/, '')
+        : ((global as any).BACKEND_URL || 'http://192.168.29.32:5000');
       const PRED_URL = `${BACKEND_BASE}/predict`;
 
       // Try to upload to backend for inference on all platforms (web & native).
@@ -390,12 +393,18 @@ export default function RecordScreen() {
           console.warn('Could not derive backend URL from Expo Constants', e);
         }
 
+        // Attach optional API key from build-time env var (only use if intentionally public)
+        const headers: Record<string, string> = {};
+        if (typeof process !== 'undefined' && (process as any).env && (process as any).env.NEXT_PUBLIC_PRED_API_KEY) {
+          headers['x-api-key'] = (process as any).env.NEXT_PUBLIC_PRED_API_KEY;
+        }
+
         // Upload with a single retry for 5xx errors
-        let r = await fetch(backendUrl, { method: 'POST', body: form });
+        let r = await fetch(backendUrl, { method: 'POST', body: form, headers });
         if (!r.ok && r.status >= 500) {
           // wait briefly then retry once
           await new Promise((res) => setTimeout(res, 500));
-          r = await fetch(backendUrl, { method: 'POST', body: form });
+          r = await fetch(backendUrl, { method: 'POST', body: form, headers });
         }
 
         if (!r.ok) {

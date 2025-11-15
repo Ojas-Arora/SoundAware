@@ -118,7 +118,13 @@ export function MLModelProvider({ children }: { children: React.ReactNode }) {
     // so that Expo Go on device can reach the dev machine even when the hardcoded IP is wrong.
     const candidates: string[] = [];
 
-    // 1) explicit override set by app (recommended)
+    // 0) build-time env var (Vercel/Next) - highest priority for production builds
+    const envApi = (typeof process !== 'undefined' && (process as any).env && (process as any).env.NEXT_PUBLIC_API_URL)
+      ? ((process as any).env.NEXT_PUBLIC_API_URL as string).replace(/\/$/, '')
+      : '';
+    if (envApi) candidates.push(envApi);
+
+    // 1) explicit override set by app (recommended for dev on device)
     if ((global as any).BACKEND_URL) {
       candidates.push((global as any).BACKEND_URL.replace(/\/$/, ''));
     }
@@ -164,12 +170,19 @@ export function MLModelProvider({ children }: { children: React.ReactNode }) {
 
     const form = await buildForm();
 
+    // Prepare optional public API key header (only if intentionally exposed)
+    const headers: Record<string, string> = {};
+    const envKey = (typeof process !== 'undefined' && (process as any).env && (process as any).env.NEXT_PUBLIC_PRED_API_KEY)
+      ? (process as any).env.NEXT_PUBLIC_PRED_API_KEY as string
+      : '';
+    if (envKey) headers['x-api-key'] = envKey;
+
     // Try each candidate sequentially until one succeeds
     let lastError: any = null;
     for (const base of candidates) {
       const url = `${base.replace(/\/$/, '')}/predict`;
       try {
-        const res = await fetch(url, { method: 'POST', body: form as any });
+        const res = await fetch(url, { method: 'POST', body: form as any, headers });
         if (!res.ok) {
           lastError = new Error(`Server error ${res.status} from ${url}`);
           console.warn('processAudio: server returned non-OK', res.status, url);

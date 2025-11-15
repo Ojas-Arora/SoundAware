@@ -5,3 +5,11 @@ soundfile
 tensorflow
 requests
 Flask-Cors
+gunicorn>=20.0.4
+
+# Notes:
+# - If you prefer a much smaller runtime, consider replacing `tensorflow` with `tflite-runtime`
+#   and patching `contexts/pred_with_audio.py` to prefer `tflite_runtime.interpreter`.
+#   Example (in requirements):
+#     tflite-runtime
+#   If you use tflite-runtime, ensure you pick the correct wheel for the target platform or use Docker base image matching Render's architecture.
