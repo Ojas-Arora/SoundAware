@@ -19,7 +19,7 @@ Important config files:
 - `app.json` – Expo config (name, icon, plugins, web bundler, etc.)
 
 ## Audio Processing
-- Used Librosa
+- Used `Librosa`
 - Raw audio signals were transformed into `Mel-spectrogram` images to capture meaningful time-frequency features.
 - All audio clips were standardized to a 16 kHz sample rate for consistency across the dataset.
 - Mel-spectrograms were computed using an `FFT` size of 1024 and a hop length of 512.
