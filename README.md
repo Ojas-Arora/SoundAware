@@ -19,6 +19,7 @@ Important config files:
 - `app.json` – Expo config (name, icon, plugins, web bundler, etc.)
 
 ## Audio Processing
+- Used Librosa
 - Raw audio signals were transformed into `Mel-spectrogram` images to capture meaningful time-frequency features.
 - All audio clips were standardized to a 16 kHz sample rate for consistency across the dataset.
 - Mel-spectrograms were computed using an `FFT` size of 1024 and a hop length of 512.
@@ -43,6 +44,7 @@ Important config files:
 - Node.js LTS (>= 18 recommended)
 - npm (bundled with Node) or yarn/pnpm (optional)
 - Expo CLI (you can use `npx` without a global install)
+- Python Libraries: TensorFlow, Seaborn, Scikit-learn, Librosa, NumPy, Matplotlib
 - Android or iOS device:
   - Android: Expo Go app on a physical device (from Play Store) or an Android Emulator (Android Studio).
   - iOS: Expo Go on a physical device (App Store) or Xcode Simulator (macOS only).
