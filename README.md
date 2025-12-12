@@ -18,7 +18,15 @@ Important config files:
 - `package.json` – scripts and dependencies
 - `app.json` – Expo config (name, icon, plugins, web bundler, etc.)
 
+## Audio Processing
+- Raw audio signals were transformed into `Mel-spectrogram` images to capture meaningful time-frequency features.
+- All audio clips were standardized to a 16 kHz sample rate for consistency across the dataset.
+- Mel-spectrograms were computed using an `FFT` size of 1024 and a hop length of 512.
+- A total of 64 Mel-frequency bands were extracted to create detailed, high-resolution spectrograms.
+- The generated Mel-spectrograms were saved as `TIFF records`, which served as the input format for the neural network classification model.
+
 ## Model 
+- Used `TensorFlow` (with `Keras` API)
 - The dataset used in this project was sourced from [Zenodo](https://doi.org/10.5281/zenodo.10378145)
 - The classification task includes 12 classes, and each class has two categories: speech and no speech.
 - We experimented with multiple deep learning architectures, including:
